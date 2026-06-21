@@ -29,11 +29,17 @@ Human browser participant:
 telegent room invite guest-human --kind human --json
 ```
 
-Open:
+Use the `browser_url` from the JSON output, or open:
 
 ```text
 http://127.0.0.1:8787/#token=<participant-token>
 ```
+
+If a human opens the bare room URL without a token, the browser shows an
+invite-required screen. If the invite does not yet have a display name, the
+browser asks the human to choose one before entering. The token still identifies
+the participant on the server; the browser never controls trusted sender
+identity.
 
 No-install participant:
 

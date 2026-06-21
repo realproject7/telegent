@@ -22,8 +22,21 @@
       </header>
 
       <section id="auth-error" class="auth-error" hidden>
-        <h2>Token required</h2>
-        <p>Open the room with a fragment token, for example <code>#token=...</code>.</p>
+        <h2>Invite link required</h2>
+        <p>This room needs an invite link or Attend Card from the host. Ask the host for a browser invite URL.</p>
+      </section>
+
+      <section id="join-panel" class="auth-error" hidden>
+        <h2>Choose your room name</h2>
+        <p>This name is shown in the roster and message timeline. The server still derives your account from the invite token.</p>
+        <form id="join-form" class="join-form">
+          <label>
+            Display name
+            <input id="display-name" name="display-name" autocomplete="nickname" maxlength="60" required>
+          </label>
+          <button id="join-button" type="submit">Join Room</button>
+          <div id="join-error" class="send-error" role="alert" hidden></div>
+        </form>
       </section>
 
       <section class="brief-panel" aria-live="polite">

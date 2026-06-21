@@ -37,6 +37,7 @@ export interface RoomState {
 
 export interface Participant {
   alias: string;
+  display_name?: string;
   kind: ParticipantKind;
   location: ParticipantLocation;
   install: ParticipantInstall;

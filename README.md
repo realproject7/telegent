@@ -72,10 +72,22 @@ In another shell using the same `TELEGENT_HOME`, invite a participant:
 ```bash
 telegent room invite reviewer --kind agent --json
 telegent room invite-card reviewer
+telegent room invite guest-human --kind human --json
 ```
 
 The invite output contains a participant-specific token. Treat it like a
 password for that room.
+
+Human invites also include a `browser_url` such as:
+
+```text
+http://127.0.0.1:8787/#token=<participant-token>
+```
+
+Opening the bare room URL without a token shows an invite-required screen. Human
+participants who do not yet have a display name choose one before entering the
+room. The token still controls the server-side identity; clients never choose a
+trusted `from` value.
 
 ## Installed CLI Participant
 
@@ -166,7 +178,8 @@ Do not put long-lived tokens in query strings. The browser stores the fragment
 token in `sessionStorage` and sends it as a Bearer token.
 
 The browser room supports the room brief, timeline, composer, roster, safe
-message rendering, host-only close/export controls, and room export.
+message rendering, display-name join flow for humans, host-only close/export
+controls, and room export.
 
 ## Room Brief
 

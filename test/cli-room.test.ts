@@ -90,10 +90,12 @@ test("room lifecycle CLI creates rooms, updates briefs, invites participants, an
 
   stdout.chunks = [];
   await runRoomCommand(["invite", "reviewer", "--kind", "agent", "--json"], context);
-  const invite = stdout.json<{ ok: true; alias: string; token: string; card_command: string }>();
+  const invite = stdout.json<{ ok: true; alias: string; kind: string; token: string; card_command: string; browser_url: string }>();
   assert.equal(invite.alias, "reviewer");
+  assert.equal(invite.kind, "agent");
   assert.match(invite.token, /^tgl_/);
   assert.equal(invite.card_command.includes("/card?participant=reviewer&token="), true);
+  assert.equal(invite.browser_url, `http://127.0.0.1:8787/#token=${invite.token}`);
 
   const participants = await readParticipants(roomPaths(context.home, "cli-room"));
   const reviewer = participants.find((participant) => participant.alias === "reviewer");
@@ -193,6 +195,17 @@ test("room invite commands normalize trailing slash base URLs", async () => {
   assert.doesNotMatch(card, /127\.0\.0\.1:8787\/\/join/);
   assert.doesNotMatch(card, /127\.0\.0\.1:8787\/\/wait/);
   assert.doesNotMatch(card, /127\.0\.0\.1:8787\/\/messages/);
+});
+
+test("human invites print a browser-openable fragment URL", async () => {
+  const { context, stdout } = await makeContext();
+  await runRoomCommand(["start", "human-room", "--json"], context);
+  stdout.chunks = [];
+
+  await runRoomCommand(["invite", "guest", "--kind", "human", "--json"], context);
+  const invite = stdout.json<{ kind: string; token: string; browser_url: string }>();
+  assert.equal(invite.kind, "human");
+  assert.equal(invite.browser_url, `http://127.0.0.1:8787/#token=${invite.token}`);
 });
 
 test("room brief set uses the live HTTP server when available so waiters are notified", async () => {

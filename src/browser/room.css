@@ -30,11 +30,13 @@ body {
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
 
 button:focus-visible,
+input:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--focus);
@@ -147,6 +149,37 @@ h1 {
   border: 1px solid var(--danger);
   border-radius: var(--radius);
   background: #fff7f7;
+}
+
+.join-form {
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+}
+
+.join-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.join-form input {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--panel);
+}
+
+.join-form button {
+  min-height: 38px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: #ffffff;
+  background: var(--accent);
+  cursor: pointer;
 }
 
 .workspace {

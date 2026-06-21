@@ -209,7 +209,13 @@ async function roomInvite(argv: string[], context: CliContext): Promise<number> 
   await upsertParticipant(context.home, current.roomId, participant(alias, kind, false, token));
   await writeToken(context.home, current.roomId, alias, token);
   const cardCommand = `curl -s "${roomUrl(current.baseUrl, `/card?participant=${alias}&token=${token}`)}"`;
-  return emit(context, flagBoolean(args, "json"), { ok: true, room: current.roomId, alias, token, card_command: cardCommand }, `Invite ${alias}:\n${cardCommand}\n`);
+  const browserUrl = `${normalizeBaseUrl(current.baseUrl)}/#token=${token}`;
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, room: current.roomId, alias, kind, token, card_command: cardCommand, browser_url: browserUrl },
+    `Invite ${alias}:\n${kind === "human" ? `Open: ${browserUrl}\n` : ""}${cardCommand}\n`
+  );
 }
 
 async function roomInviteCard(argv: string[], context: CliContext): Promise<number> {

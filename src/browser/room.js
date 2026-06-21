@@ -3,6 +3,8 @@ const state = {
   cursor: 0,
   seen: new Set(),
   participants: new Set(),
+  participantLabels: new Map(),
+  profile: null,
   roomStatus: "open",
   briefVersion: 0,
   replyTo: null,
@@ -11,6 +13,10 @@ const state = {
 
 const shell = document.querySelector(".room-shell");
 const authError = document.getElementById("auth-error");
+const joinPanel = document.getElementById("join-panel");
+const joinForm = document.getElementById("join-form");
+const displayNameInput = document.getElementById("display-name");
+const joinError = document.getElementById("join-error");
 const roomTitle = document.getElementById("room-title");
 const roomStatus = document.getElementById("room-status");
 const attendancePolicy = document.getElementById("attendance-policy");
@@ -34,18 +40,66 @@ const exportButton = document.getElementById("export-button");
 init().catch((error) => showError(error instanceof Error ? error.message : String(error)));
 
 async function init() {
-  state.token = tokenFromFragment() || sessionStorage.getItem("telegent.token");
-  if (!state.token) {
+  const token = tokenFromFragment() || sessionStorage.getItem("telegent.token");
+  if (!token) {
     authError.hidden = false;
     shell.dataset.state = "auth-error";
+    window.addEventListener("hashchange", () => {
+      const nextToken = tokenFromFragment();
+      if (nextToken) {
+        authError.hidden = true;
+        void startWithToken(nextToken);
+      }
+    });
     return;
   }
+  await startWithToken(token);
+}
+
+async function startWithToken(token) {
+  state.token = token;
   sessionStorage.setItem("telegent.token", state.token);
+  state.profile = (await authFetch("/profile")).participant;
+  if (state.profile.kind === "human" && !state.profile.display_name) {
+    joinPanel.hidden = false;
+    shell.dataset.state = "joining";
+    bindJoinForm();
+    return;
+  }
+  await enterRoom();
+}
+
+async function enterRoom() {
+  joinPanel.hidden = true;
   await Promise.all([loadBrief(), loadStatus()]);
   await pollMessages();
   setInterval(() => void pollMessages(), 3000);
   setInterval(() => void loadStatus(), 5000);
   bindEvents();
+}
+
+function bindJoinForm() {
+  joinForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitProfile();
+  });
+}
+
+async function submitProfile() {
+  joinError.hidden = true;
+  const displayName = displayNameInput.value.trim();
+  if (!displayName) return;
+  try {
+    const payload = await authFetch("/profile", {
+      method: "POST",
+      body: JSON.stringify({ display_name: displayName })
+    });
+    state.profile = payload.participant;
+    await enterRoom();
+  } catch (error) {
+    joinError.hidden = false;
+    joinError.textContent = error instanceof Error ? error.message : String(error);
+  }
 }
 
 function bindEvents() {
@@ -107,6 +161,9 @@ async function loadStatus() {
     briefVersion.textContent = `v${payload.brief_version} available`;
   }
   state.participants = new Set(payload.participants.map((participant) => participant.alias));
+  state.participantLabels = new Map(
+    payload.participants.map((participant) => [participant.alias, participant.display_name || participant.alias])
+  );
   participantCount.textContent = `${payload.participants.length} participants`;
   renderParticipants(payload.participants);
   closeButton.hidden = !payload.is_host;
@@ -202,9 +259,10 @@ function renderParticipants(participants) {
     const item = document.createElement("li");
     item.className = "participant";
     const name = document.createElement("strong");
-    name.textContent = participant.alias;
+    name.textContent = participant.display_name || participant.alias;
     const meta = document.createElement("span");
-    meta.textContent = `${participant.kind} · ${participant.location} · ${participant.install} · ${participant.attention} · ${formatRelative(participant.lastSeenAt)}`;
+    const alias = participant.display_name ? `@${participant.alias} · ` : "";
+    meta.textContent = `${alias}${participant.kind} · ${participant.location} · ${participant.install} · ${participant.attention} · ${formatRelative(participant.lastSeenAt)}`;
     item.append(name, meta);
     participantList.append(item);
   }
@@ -222,7 +280,7 @@ function renderMessage(message) {
 
   const from = document.createElement("div");
   from.className = "message-from";
-  from.textContent = message.from;
+  from.textContent = state.participantLabels.get(message.from) || message.from;
 
   const text = document.createElement("div");
   text.className = "message-text";

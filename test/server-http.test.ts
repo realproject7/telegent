@@ -92,6 +92,24 @@ test("HTTP core exposes every non-wait endpoint", async () => {
     const join = await jsonFetch(fixture, "POST", "/join", fixture.agentToken);
     assert.equal(join.status, 200);
 
+    const profile = await jsonFetch(fixture, "POST", "/profile", fixture.hostToken, {
+      display_name: "Operator"
+    });
+    assert.equal(profile.status, 200);
+    assert.equal(profile.body.participant.display_name, "Operator");
+
+    const duplicateProfile = await jsonFetch(fixture, "POST", "/profile", fixture.agentToken, {
+      display_name: "operator"
+    });
+    assert.equal(duplicateProfile.status, 409);
+    assert.equal(duplicateProfile.body.error, "display_name_taken");
+
+    const invalidProfile = await jsonFetch(fixture, "POST", "/profile", fixture.agentToken, {
+      display_name: ""
+    });
+    assert.equal(invalidProfile.status, 400);
+    assert.equal(invalidProfile.body.error, "invalid_display_name");
+
     const sent = await jsonFetch(fixture, "POST", "/messages", fixture.agentToken, {
       text: "@host hello",
       client_msg_id: "client-1"

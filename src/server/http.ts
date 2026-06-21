@@ -89,6 +89,8 @@ async function handleRequest(context: RequestContext): Promise<void> {
   if (context.req.method === "GET" && pathname === "/brief") return getBrief(context);
   if (context.req.method === "POST" && pathname === "/brief") return postBrief(context);
   if (context.req.method === "POST" && pathname === "/attendance") return postAttendance(context);
+  if (context.req.method === "GET" && pathname === "/profile") return getProfile(context);
+  if (context.req.method === "POST" && pathname === "/profile") return postProfile(context);
   if (context.req.method === "GET" && pathname === "/card") return getCard(context);
   if (context.req.method === "POST" && pathname === "/join") return postJoin(context);
   if (context.req.method === "GET" && pathname === "/messages") return getMessages(context);
@@ -167,6 +169,36 @@ async function postAttendance(context: RequestContext): Promise<void> {
   await appendSystem(context, `Attendance policy set to ${policy}`);
   context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 200, { ok: true, attendance_policy: state.attendance_policy });
+}
+
+async function getProfile(context: RequestContext): Promise<void> {
+  const auth = await requireParticipant(context);
+  sendJson(context.res, 200, { ok: true, participant: publicParticipant(auth.participant) });
+}
+
+async function postProfile(context: RequestContext): Promise<void> {
+  const auth = await requireParticipant(context);
+  const body = await readJsonBody<{ display_name?: unknown }>(context);
+  if (typeof body.display_name !== "string") {
+    throw new HttpError(400, "invalid_display_name", "display_name is required");
+  }
+  const displayName = parseDisplayName(body.display_name);
+  const participants = await readParticipants(roomPaths(context.options.root, context.options.roomId));
+  const duplicate = participants.find(
+    (participant) =>
+      participant.alias !== auth.participant.alias &&
+      (participant.display_name ?? participant.alias).toLowerCase() === displayName.toLowerCase()
+  );
+  if (duplicate !== undefined) {
+    throw new HttpError(409, "display_name_taken", "display name is already in use");
+  }
+  const updated: Participant = {
+    ...auth.participant,
+    display_name: displayName,
+    lastSeenAt: new Date().toISOString()
+  };
+  await upsertParticipant(context.options.root, context.options.roomId, updated);
+  sendJson(context.res, 200, { ok: true, participant: publicParticipant(updated) });
 }
 
 async function postJoin(context: RequestContext): Promise<void> {
@@ -320,8 +352,14 @@ async function getStatus(context: RequestContext): Promise<void> {
     attendance_policy: state.attendance_policy,
     brief_updated_at: state.brief_updated_at,
     brief_updated_by: state.brief_updated_by,
-    participants: participants.map(({ token_hash, ...participant }) => participant)
+    participants: participants.map((participant) => publicParticipant(participant))
   });
+}
+
+function publicParticipant(participant: Participant): Omit<Participant, "token_hash"> {
+  const publicFields: Participant = { ...participant };
+  delete publicFields.token_hash;
+  return publicFields;
 }
 
 async function touchParticipant(
@@ -510,6 +548,18 @@ function parseSinceId(raw: string | null): number {
     throw new HttpError(400, "invalid_since_id", "since_id must be a non-negative integer");
   }
   return parsed;
+}
+
+function parseDisplayName(value: string): string {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (trimmed.length === 0 || trimmed.length > 60 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    throw new HttpError(
+      400,
+      "invalid_display_name",
+      "display name must be 1-60 characters without control characters"
+    );
+  }
+  return trimmed;
 }
 
 export function renderAttendCard(

@@ -139,6 +139,9 @@ test("e2e dogfood: local CLI agent, no-install curl agent, browser human, brief 
 
     const page = await browser.newPage({ viewport: { width: 980, height: 720 } });
     await page.goto(`${baseUrl}/#token=${started.token}`);
+    await page.waitForSelector("text=Choose your room name");
+    await page.fill("#display-name", "Operator");
+    await page.click("#join-button");
     await page.waitForSelector("text=Final release check.");
     await page.fill("#message-text", "@reviewer browser human here");
     await page.click("#send-button");

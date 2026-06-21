@@ -32,7 +32,7 @@ async function startFixture(options: { rateLimitPerMinute?: number } = {}): Prom
     briefBody: "Ship the browser room safely."
   });
   await writeParticipants(root, roomId, [
-    participant("host", "human", true, hostToken),
+    { ...participant("host", "human", true, hostToken), display_name: "Host" },
     participant("reviewer", "agent", false, reviewerToken)
   ]);
   const port = await getFreePort();
@@ -134,6 +134,37 @@ test("browser room joins with fragment token, sends, receives, and renders safel
     });
     assert.equal(layout.composerBelowTopbar, true);
     assert.equal(layout.textareaInsideViewport, true);
+  } finally {
+    await browser.close();
+    await fixture.close();
+  }
+});
+
+test("browser bare URL explains invite requirement and human token claims display name", async () => {
+  const fixture = await startFixture();
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 960, height: 700 } });
+    await page.goto(fixture.baseUrl);
+    await page.waitForSelector("text=Invite link required");
+
+    await page.goto(`${fixture.baseUrl}/#token=${fixture.hostToken}`);
+    await page.waitForSelector("text=Ship the browser room safely.");
+
+    const humanToken = `guest-${fixture.roomId}`;
+    await writeParticipants(fixture.root, fixture.roomId, [
+      { ...participant("host", "human", true, fixture.hostToken), display_name: "Host" },
+      participant("reviewer", "agent", false, fixture.reviewerToken),
+      participant("guest", "human", false, humanToken)
+    ]);
+
+    const guestPage = await browser.newPage({ viewport: { width: 960, height: 700 } });
+    await guestPage.goto(`${fixture.baseUrl}/#token=${humanToken}`);
+    await guestPage.waitForSelector("text=Choose your room name");
+    await guestPage.fill("#display-name", "Project Seven");
+    await guestPage.click("#join-button");
+    await guestPage.waitForSelector("text=Ship the browser room safely.");
+    await guestPage.waitForSelector("text=Project Seven");
   } finally {
     await browser.close();
     await fixture.close();
