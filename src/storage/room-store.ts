@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   assertSafeSlug,
@@ -13,6 +13,7 @@ import {
 } from "../protocol/index.js";
 import { withWriterLock } from "./lock.js";
 import { roomPaths, type RoomPaths } from "./paths.js";
+import { appendSecureFile, ensureSecureDir, writeSecureFile } from "./secure-fs.js";
 
 export const MAX_BRIEF_LENGTH = 16_000;
 
@@ -92,8 +93,8 @@ export async function createRoom(options: CreateRoomOptions): Promise<RoomState>
 
   await writeNewJson(paths.state, state);
   await writeNewJson(paths.participants, []);
-  await writeFile(paths.brief, briefBody, { flag: "wx" });
-  await writeFile(paths.messages, "", { flag: "wx" });
+  await writeSecureFile(paths.brief, briefBody, { flag: "wx" });
+  await writeSecureFile(paths.messages, "", { flag: "wx" });
   return state;
 }
 
@@ -113,7 +114,7 @@ export async function updateBrief(options: UpdateBriefOptions): Promise<RoomBrie
       brief_updated_at: now.toISOString(),
       brief_updated_by: options.updatedBy
     };
-    await writeFile(paths.brief, options.body);
+    await writeSecureFile(paths.brief, options.body);
     await writeJson(paths.state, updatedState);
     return {
       body: options.body,
@@ -235,7 +236,7 @@ export async function writeCursor(
     throw new Error("cursor sinceId must be a non-negative safe integer");
   }
   const paths = roomPaths(root, roomId);
-  await mkdir(paths.cursors, { recursive: true });
+  await ensureSecureDir(paths.cursors);
   const record: CursorRecord = {
     alias,
     sinceId,
@@ -330,7 +331,10 @@ function createMessage(
 }
 
 async function ensureRoomDirectories(paths: RoomPaths): Promise<void> {
-  await mkdir(paths.cursors, { recursive: true });
+  await ensureSecureDir(paths.root);
+  await ensureSecureDir(paths.rooms);
+  await ensureSecureDir(paths.room);
+  await ensureSecureDir(paths.cursors);
 }
 
 function assertBriefSize(body: string): void {
@@ -341,7 +345,7 @@ function assertBriefSize(body: string): void {
 
 async function appendJsonLine(path: string, value: unknown): Promise<void> {
   const line = `${JSON.stringify(value)}\n`;
-  await writeFile(path, line, { flag: "a" });
+  await appendSecureFile(path, line);
 }
 
 async function readJson<T>(path: string): Promise<T> {
@@ -350,11 +354,11 @@ async function readJson<T>(path: string): Promise<T> {
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
+  await writeSecureFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 async function writeNewJson(path: string, value: unknown): Promise<void> {
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" });
+  await writeSecureFile(path, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" });
 }
 
 async function readJsonLines<T>(path: string): Promise<T[]> {

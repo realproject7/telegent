@@ -45,7 +45,7 @@ async function startWaitFixture(options: { expiresAt?: Date; removedAgent?: bool
     root,
     roomId,
     baseUrl: "http://127.0.0.1:0",
-    waitHoldMs: 20,
+    waitHoldMs: 100,
     waitHub
   });
   await new Promise<void>((resolve) => {

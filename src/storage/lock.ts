@@ -1,4 +1,5 @@
-import { open, readFile, rm } from "node:fs/promises";
+import { chmod, open, readFile, rm } from "node:fs/promises";
+import { SECURE_FILE_MODE } from "./secure-fs.js";
 
 export interface LockOptions {
   retryDelayMs?: number;
@@ -34,9 +35,10 @@ async function acquireWriterLock(
 
   while (true) {
     try {
-      const handle = await open(lockPath, "wx");
+      const handle = await open(lockPath, "wx", SECURE_FILE_MODE);
       await handle.writeFile(JSON.stringify(record));
       await handle.close();
+      await chmod(lockPath, SECURE_FILE_MODE);
       return async () => {
         await rm(lockPath, { force: true });
       };

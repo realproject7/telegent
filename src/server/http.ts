@@ -458,7 +458,7 @@ function parseSinceId(raw: string | null): number {
   return parsed;
 }
 
-function renderAttendCard(baseUrl: string, alias: string, token: string, brief: RoomBrief): string {
+export function renderAttendCard(baseUrl: string, alias: string, token: string, brief: RoomBrief): string {
   return [
     `# Telegent Attend Card: ${alias}`,
     "",
@@ -466,6 +466,9 @@ function renderAttendCard(baseUrl: string, alias: string, token: string, brief: 
     brief.body || "(empty)",
     "",
     "## Commands",
+    `curl -s "${baseUrl}/card?participant=${alias}&token=${token}"`,
+    `curl -s -X POST "${baseUrl}/join" -H "Authorization: Bearer ${token}"`,
+    `curl -s "${baseUrl}/wait?participant=${alias}&since_id=0" -H "Authorization: Bearer ${token}"`,
     `curl -s "${baseUrl}/messages?since_id=0" -H "Authorization: Bearer ${token}"`,
     `curl -s -X POST "${baseUrl}/messages" -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data '{"text":"hello"}'`,
     "",
