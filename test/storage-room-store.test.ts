@@ -201,6 +201,7 @@ test("appendMessage resolves mentions from the stored participant roster", async
       location: "local",
       install: "host",
       attention: "attending",
+      is_host: true,
       joinedAt: "2026-06-21T00:00:00.000Z",
       lastSeenAt: "2026-06-21T00:00:00.000Z"
     },
@@ -210,6 +211,7 @@ test("appendMessage resolves mentions from the stored participant roster", async
       location: "local",
       install: "lite",
       attention: "attending",
+      is_host: false,
       joinedAt: "2026-06-21T00:00:00.000Z",
       lastSeenAt: "2026-06-21T00:00:00.000Z"
     }

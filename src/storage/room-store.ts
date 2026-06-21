@@ -16,6 +16,12 @@ import { roomPaths, type RoomPaths } from "./paths.js";
 
 export const MAX_BRIEF_LENGTH = 16_000;
 
+export class RoomLogFullError extends Error {
+  constructor() {
+    super("room message log is full");
+  }
+}
+
 export interface CreateRoomOptions {
   root: string;
   roomId: string;
@@ -29,6 +35,20 @@ export interface AppendMessageOptions {
   roomId: string;
   from: string;
   input: unknown;
+  now?: Date;
+  maxMessages?: number;
+}
+
+export interface AppendMessageResult {
+  message: Message;
+  idempotent: boolean;
+}
+
+export interface AppendServerMessageOptions {
+  root: string;
+  roomId: string;
+  from: string;
+  text: string;
   now?: Date;
 }
 
@@ -101,6 +121,10 @@ export async function updateBrief(options: UpdateBriefOptions): Promise<RoomBrie
 }
 
 export async function appendMessage(options: AppendMessageOptions): Promise<Message> {
+  return (await appendMessageResult(options)).message;
+}
+
+export async function appendMessageResult(options: AppendMessageOptions): Promise<AppendMessageResult> {
   assertSafeSlug(options.roomId, "room id");
   assertSafeSlug(options.from, "from");
   const paths = roomPaths(options.root, options.roomId);
@@ -110,6 +134,16 @@ export async function appendMessage(options: AppendMessageOptions): Promise<Mess
   return withWriterLock(paths.lock, async () => {
     const state = await readRoomState(paths);
     const participants = await readParticipants(paths);
+    const messages = await readJsonLines<Message>(paths.messages);
+    if (input.client_msg_id !== undefined) {
+      const existing = messages.find(
+        (message) => message.from === options.from && message.client_msg_id === input.client_msg_id
+      );
+      if (existing !== undefined) return { message: existing, idempotent: true };
+    }
+    if (options.maxMessages !== undefined && messages.length >= options.maxMessages) {
+      throw new RoomLogFullError();
+    }
     const message = createMessage(input, {
       id: state.next_message_id,
       room: state.id,
@@ -123,6 +157,36 @@ export async function appendMessage(options: AppendMessageOptions): Promise<Mess
       updatedAt: now.toISOString(),
       next_message_id: message.id + 1
     });
+    return { message, idempotent: false };
+  });
+}
+
+export async function appendServerMessage(options: AppendServerMessageOptions): Promise<Message> {
+  assertSafeSlug(options.roomId, "room id");
+  assertSafeSlug(options.from, "from");
+  const paths = roomPaths(options.root, options.roomId);
+  const now = options.now ?? new Date();
+
+  return withWriterLock(paths.lock, async () => {
+    const state = await readRoomState(paths);
+    const participants = await readParticipants(paths);
+    const message = buildMessage(
+      { text: options.text },
+      {
+        id: state.next_message_id,
+        room: state.id,
+        from: options.from,
+        now,
+        mentions: parseMentions(options.text, participants.map((participant) => participant.alias)),
+        type: "system"
+      }
+    );
+    await appendJsonLine(paths.messages, message);
+    await writeJson(paths.state, {
+      ...state,
+      updatedAt: now.toISOString(),
+      next_message_id: message.id + 1
+    });
     return message;
   });
 }
@@ -130,6 +194,17 @@ export async function appendMessage(options: AppendMessageOptions): Promise<Mess
 export async function readMessages(root: string, roomId: string): Promise<Message[]> {
   const paths = roomPaths(root, roomId);
   return readJsonLines<Message>(paths.messages);
+}
+
+export async function readBrief(root: string, roomId: string): Promise<RoomBrief> {
+  const paths = roomPaths(root, roomId);
+  const [state, body] = await Promise.all([readRoomState(paths), readFile(paths.brief, "utf8")]);
+  return {
+    body,
+    brief_version: state.brief_version,
+    brief_updated_at: state.brief_updated_at,
+    brief_updated_by: state.brief_updated_by
+  };
 }
 
 export async function readCursor(root: string, roomId: string, alias: string): Promise<number> {
@@ -177,6 +252,35 @@ export async function writeParticipants(
   }
   await withWriterLock(paths.lock, async () => {
     await writeJson(paths.participants, participants);
+  });
+}
+
+export async function upsertParticipant(root: string, roomId: string, participant: Participant): Promise<void> {
+  assertSafeSlug(participant.alias, "participant alias");
+  const paths = roomPaths(root, roomId);
+  await withWriterLock(paths.lock, async () => {
+    const participants = await readParticipants(paths);
+    const existingIndex = participants.findIndex((current) => current.alias === participant.alias);
+    if (existingIndex === -1) {
+      participants.push(participant);
+    } else {
+      participants[existingIndex] = participant;
+    }
+    await writeJson(paths.participants, participants);
+  });
+}
+
+export async function closeRoom(root: string, roomId: string, now: Date = new Date()): Promise<RoomState> {
+  const paths = roomPaths(root, roomId);
+  return withWriterLock(paths.lock, async () => {
+    const state = await readRoomState(paths);
+    const closed = {
+      ...state,
+      status: "closed" as const,
+      updatedAt: now.toISOString()
+    };
+    await writeJson(paths.state, closed);
+    return closed;
   });
 }
 

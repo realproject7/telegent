@@ -139,8 +139,7 @@ Hard rules:
 - Mention parsing only resolves current participant aliases and ignores fenced
   code blocks and inline code spans.
 - Any non-localhost exposure requires TLS or another secure tunnel.
-- Localhost write endpoints are protected by same-origin checks or a host-local
-  session token.
+- Localhost write endpoints require bearer tokens and same-origin checks.
 - Browser rendering never evaluates untrusted message content.
 - No mock, stub, placeholder, or temporary runtime code exists.
 
@@ -287,8 +286,8 @@ long-poll lifecycle handled in Ticket 3B.
   the installed package.
 - Implement `/brief`, `/card`, `/join`, `/messages`, `/leave`, `/close`, and
   `/status`.
-- Bind sender identity from the authenticated token or host-local session,
-  never from client body fields.
+- Bind sender identity from the authenticated participant token, never from
+  client body fields.
 - At message append time, call the Ticket 2 mention parser with the live
   participant roster so mentions resolve against current room membership.
 - At message append time, enforce `client_msg_id` idempotency per participant:
@@ -297,8 +296,8 @@ long-poll lifecycle handled in Ticket 3B.
 - Return the flat standard error contract:
   `{ "ok": false, "error": "code", "message": "human-readable reason" }`.
 - Require TLS or another secure tunnel for any non-localhost exposure.
-- Protect localhost write endpoints with same-origin Origin/Referer checks or a
-  host-local session token.
+- Protect localhost write endpoints with bearer-token authentication plus
+  same-origin Origin/Referer checks.
 - Add rate limits, max body size, and room-log cap guards.
 - Render `/card` as a participant-specific Attend Card that includes the current
   Room Brief plus alias, token handling, send/read/wait commands, and safety
@@ -517,7 +516,8 @@ served by the room server.
   and `brief_version`.
 - Implement fragment-token browser join flow: `#token=...` to `sessionStorage`
   to Bearer fetches.
-- Implement localhost host flow without exposing guest controls.
+- Implement localhost host flow with the host participant token and without
+  exposing guest controls.
 - Poll `/messages?since_id=<id>` every 3 seconds.
 - Dedup messages by ID.
 - Render message text, sender labels, code spans, and mentions using

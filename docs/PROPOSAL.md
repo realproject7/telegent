@@ -314,15 +314,15 @@ remote participant = telegent.dev tunnel routing or another secure exposure meth
 
 This supports mixed rooms; see §16.5 for the canonical local/remote example.
 
-Sender trust differs by location:
+Sender trust is credential-bound, even on localhost:
 
-- A local host browser or dashboard can be trusted through localhost binding or
-  a host-local session because the request originates on the host machine. This
-  mirrors QuadWork's local dashboard trust model; no per-participant token is
-  required for that local host dashboard path.
-- A remote or tunneled browser human cannot use source IP as a trust signal. It
-  needs a participant-bound token or session, and the server must derive the
-  stored sender from that credential.
+- Every room API request uses a participant-bound bearer token. Localhost is a
+  transport boundary, not an identity boundary.
+- `/card` is the only query-token exception because the invite URL itself is the
+  onboarding artifact. After onboarding, agents and browsers send
+  `Authorization: Bearer <token>`.
+- Remote or tunneled browser humans follow the same token model, with TLS or a
+  secure tunnel required before traffic leaves localhost.
 
 In all cases, browser UI may display a friendly name, but it must not be allowed
 to choose the stored `from`/`sender` field.
@@ -1050,7 +1050,7 @@ one token <-> one participant alias
 ```
 
 - Participant API requests carry `Authorization: Bearer <token>`, except
-  `/card`.
+  `/card` onboarding.
 - The server resolves `token -> participant` on every request.
 - The message `from` field is always derived from the token, never read from the
   request body.
@@ -1060,17 +1060,10 @@ one token <-> one participant alias
 This closes sender impersonation: a participant holding `reviewer`'s token can
 only ever post as `reviewer`.
 
-The local host dashboard is the narrow exception to the "token for every human"
-mental model: it may be bound by localhost plus a host-local session and post as
-the room host/human. That exception must not cross a tunnel boundary. Remote
-browser humans, guest humans, remote agents, and installed/lite participants all
-need participant-bound credentials, and the server still derives `from`.
-
-Localhost trust is not enough for write endpoints by itself. Host-browser writes
-such as `POST /messages` and `POST /close` must also require either a same-origin
-`Origin`/`Referer` check or a host-local session token minted by `room serve`.
-This prevents an unrelated web page from posting to `127.0.0.1:<port>` as the
-host.
+There is no token-free localhost host path in v0.1. Host-browser writes such as
+`POST /messages` and `POST /close` still use the host participant token, and
+write endpoints also enforce same-origin `Origin`/`Referer` checks. This
+prevents an unrelated web page from posting to `127.0.0.1:<port>` as the host.
 
 Tokens are room-admission credentials, not cryptographic identity. Token rotation
 and `single_use` admission tokens that mint a longer-lived session token are
@@ -1551,11 +1544,11 @@ the fragment client-side, stores the token in `sessionStorage`, and sends
 
 Browser authentication rules:
 
-- Localhost host browser: may use localhost trust and a host-local session.
-- Remote browser: token is required because source IP is no longer a trust
-  signal.
+- Localhost and remote browsers both require participant tokens for room data
+  and writes.
+- Source IP is not an identity signal.
 - Browser UI cannot choose `from`; the server derives sender identity from the
-  token or local host session.
+  token.
 - Display name may differ from alias, but stored `from` remains server-derived.
 - Missing or invalid token shows a join error and a curl fallback from the room
   card, not a silent empty room.
@@ -2071,7 +2064,7 @@ Resulting spec changes:
 | Browser room XSS executes participant content | Vanilla UI must render untrusted content with `textContent`/safe DOM construction, never untrusted `innerHTML`; unsafe link schemes are rendered as text |
 | Bearer token is intercepted off-localhost | TLS or secure tunnel is required for any LAN/tunnel/reverse-proxy exposure |
 | Leaked participant token enables impersonation | short-lived rooms, participant removal, room close as backstop, future token rotation |
-| Localhost browser writes can be CSRF'd | same-origin checks or host-local session token for localhost write endpoints |
+| Localhost browser writes can be CSRF'd | bearer token required plus same-origin checks for localhost write endpoints |
 | Participant floods host disk | message rate limits, body/attachment size limits, room-log caps |
 | Lite participant attend loop dies silently | Observed status, heartbeats, human fallback, core mode for durable attendance |
 | Host forgets to close room | TTL by default, room status reminders |

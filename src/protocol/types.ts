@@ -37,6 +37,9 @@ export interface Participant {
   location: ParticipantLocation;
   install: ParticipantInstall;
   attention: ParticipantAttention;
+  is_host: boolean;
+  token_hash?: string;
+  removed_at?: string;
   joinedAt: string;
   lastSeenAt: string;
 }
