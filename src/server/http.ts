@@ -18,6 +18,7 @@ import {
 import type { Participant, RoomBrief } from "../protocol/index.js";
 import { assertSafeSlug } from "../protocol/index.js";
 import { errorBody, HttpError } from "./errors.js";
+import { buildWaitResponse, defaultWaitHub, type WaitHub } from "./wait.js";
 
 export interface RoomHttpServerOptions {
   root: string;
@@ -27,6 +28,8 @@ export interface RoomHttpServerOptions {
   maxMessages?: number;
   rateLimitPerMinute?: number;
   loopGuardLimit?: number;
+  waitHoldMs?: number;
+  waitHub?: WaitHub;
   allowInsecureRemote?: boolean;
 }
 
@@ -48,6 +51,8 @@ const DEFAULT_OPTIONS = {
   maxMessages: 50_000,
   rateLimitPerMinute: 120,
   loopGuardLimit: 30,
+  waitHoldMs: 25_000,
+  waitHub: defaultWaitHub,
   allowInsecureRemote: false
 };
 
@@ -76,6 +81,7 @@ async function handleRequest(context: RequestContext): Promise<void> {
   if (context.req.method === "POST" && pathname === "/join") return postJoin(context);
   if (context.req.method === "GET" && pathname === "/messages") return getMessages(context);
   if (context.req.method === "POST" && pathname === "/messages") return postMessage(context);
+  if (context.req.method === "GET" && pathname === "/wait") return getWait(context);
   if (context.req.method === "POST" && pathname === "/leave") return postLeave(context);
   if (context.req.method === "POST" && pathname === "/close") return postClose(context);
   if (context.req.method === "GET" && pathname === "/status") return getStatus(context);
@@ -119,6 +125,7 @@ async function postBrief(context: RequestContext): Promise<void> {
     updatedBy: auth.participant.alias
   });
   await appendSystem(context, `Room brief updated to v${brief.brief_version}`);
+  context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 200, { ok: true, brief });
 }
 
@@ -140,6 +147,7 @@ async function postJoin(context: RequestContext): Promise<void> {
   };
   await upsertParticipant(context.options.root, context.options.roomId, participant);
   await appendSystem(context, `${auth.participant.alias} joined`);
+  context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 200, { ok: true, participant: auth.participant.alias });
 }
 
@@ -173,7 +181,69 @@ async function postMessage(context: RequestContext): Promise<void> {
     sendJson(context.res, 200, { ok: true, message: result.message, idempotent: true });
     return;
   }
+  context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 201, { ok: true, message: result.message });
+}
+
+async function getWait(context: RequestContext): Promise<void> {
+  const auth = await requireParticipant(context, { allowRemoved: true });
+  const sinceId = parseSinceId(context.url.searchParams.get("since_id"));
+  const participantParam = context.url.searchParams.get("participant");
+  if (participantParam !== null && participantParam !== auth.participant.alias) {
+    throw new HttpError(403, "participant_mismatch", "participant query does not match token");
+  }
+  if (auth.participant.removed_at !== undefined) {
+    const state = await closeExpiredRoomIfNeeded(context);
+    sendJson(context.res, 200, {
+      ok: true,
+      room: context.options.roomId,
+      room_status: state.status,
+      participant: auth.participant.alias,
+      participant_status: "removed",
+      heartbeat: false,
+      messages: [],
+      mentioned: false,
+      next_since_id: sinceId,
+      keep_waiting: false,
+      next_cmd: null
+    });
+    return;
+  }
+
+  const immediate = await waitSnapshot(context, auth.participant.alias, sinceId);
+  if (immediate !== null) {
+    sendJson(context.res, 200, immediate);
+    return;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), context.options.waitHoldMs);
+  try {
+    await context.options.waitHub.wait(context.options.roomId, controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const afterWait = await waitSnapshot(context, auth.participant.alias, sinceId);
+  if (afterWait !== null) {
+    sendJson(context.res, 200, afterWait);
+    return;
+  }
+
+  sendJson(
+    context.res,
+    200,
+    buildWaitResponse({
+      room: context.options.roomId,
+      roomStatus: "open",
+      participant: auth.participant.alias,
+      messages: [],
+      sinceId,
+      baseUrl: context.options.baseUrl,
+      heartbeat: true,
+      keepWaiting: true
+    })
+  );
 }
 
 async function postLeave(context: RequestContext): Promise<void> {
@@ -184,6 +254,7 @@ async function postLeave(context: RequestContext): Promise<void> {
     lastSeenAt: new Date().toISOString()
   });
   await appendSystem(context, `${auth.participant.alias} left`);
+  context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 200, { ok: true });
 }
 
@@ -192,6 +263,7 @@ async function postClose(context: RequestContext): Promise<void> {
   requireHost(auth.participant);
   const state = await closeRoom(context.options.root, context.options.roomId);
   await appendSystem(context, "room closed");
+  context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 200, { ok: true, room_status: state.status });
 }
 
@@ -212,7 +284,7 @@ async function getStatus(context: RequestContext): Promise<void> {
 
 async function requireParticipant(
   context: RequestContext,
-  options: { allowQueryToken?: boolean } = {}
+  options: { allowQueryToken?: boolean; allowRemoved?: boolean } = {}
 ): Promise<AuthenticatedParticipant> {
   const token = bearerToken(context.req) ?? (options.allowQueryToken ? context.url.searchParams.get("token") : null);
   if (token === null) throw new HttpError(401, "unauthorized", "bearer token is required");
@@ -221,10 +293,44 @@ async function requireParticipant(
   const participant = participants.find(
     (candidate) => candidate.token_hash !== undefined && verifyToken(token, candidate.token_hash)
   );
-  if (participant === undefined || participant.removed_at !== undefined) {
+  if (participant === undefined || (participant.removed_at !== undefined && !options.allowRemoved)) {
     throw new HttpError(403, "forbidden", "participant token is not allowed");
   }
   return { participant, token };
+}
+
+async function waitSnapshot(
+  context: RequestContext,
+  participant: string,
+  sinceId: number
+): Promise<ReturnType<typeof buildWaitResponse> | null> {
+  const state = await closeExpiredRoomIfNeeded(context);
+  if (state.status === "closed") {
+    return buildWaitResponse({
+      room: context.options.roomId,
+      roomStatus: "closed",
+      participant,
+      messages: [],
+      sinceId,
+      baseUrl: context.options.baseUrl,
+      heartbeat: false,
+      keepWaiting: false
+    });
+  }
+  const messages = (await readMessages(context.options.root, context.options.roomId)).filter(
+    (message) => message.id > sinceId
+  );
+  if (messages.length === 0) return null;
+  return buildWaitResponse({
+    room: context.options.roomId,
+    roomStatus: "open",
+    participant,
+    messages,
+    sinceId,
+    baseUrl: context.options.baseUrl,
+    heartbeat: false,
+    keepWaiting: false
+  });
 }
 
 function requireHost(participant: Participant): void {
@@ -232,11 +338,22 @@ function requireHost(participant: Participant): void {
 }
 
 async function requireRoomOpen(context: RequestContext): Promise<void> {
-  const paths = roomPaths(context.options.root, context.options.roomId);
-  const state = await readRoomState(paths);
+  const state = await closeExpiredRoomIfNeeded(context);
   if (state.status !== "open") {
     throw new HttpError(403, "room_closed", "room is closed");
   }
+}
+
+async function closeExpiredRoomIfNeeded(context: RequestContext): Promise<Awaited<ReturnType<typeof readRoomState>>> {
+  const paths = roomPaths(context.options.root, context.options.roomId);
+  const state = await readRoomState(paths);
+  if (state.status === "open" && state.expires_at !== undefined && Date.now() >= Date.parse(state.expires_at)) {
+    const closed = await closeRoom(context.options.root, context.options.roomId);
+    await appendSystem(context, "room closed by ttl");
+    context.options.waitHub.notify(context.options.roomId);
+    return closed;
+  }
+  return state;
 }
 
 async function appendSystem(context: RequestContext, text: string): Promise<void> {

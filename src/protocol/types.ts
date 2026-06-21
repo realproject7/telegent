@@ -25,6 +25,7 @@ export interface RoomState {
   status: RoomStatus;
   createdAt: string;
   updatedAt: string;
+  expires_at?: string;
   next_message_id: number;
   brief_version: number;
   brief_updated_at: string;

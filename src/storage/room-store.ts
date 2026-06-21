@@ -27,6 +27,7 @@ export interface CreateRoomOptions {
   roomId: string;
   hostAlias: string;
   now?: Date;
+  expiresAt?: Date;
   briefBody?: string;
 }
 
@@ -85,6 +86,9 @@ export async function createRoom(options: CreateRoomOptions): Promise<RoomState>
     brief_updated_at: now.toISOString(),
     brief_updated_by: options.hostAlias
   };
+  if (options.expiresAt !== undefined) {
+    state.expires_at = options.expiresAt.toISOString();
+  }
 
   await writeNewJson(paths.state, state);
   await writeNewJson(paths.participants, []);
