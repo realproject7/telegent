@@ -1,14 +1,13 @@
 # Telegent Founding Tickets
 
-Status: Draft issue bodies before repository creation
-Date: 2026-06-20
+Status: GitHub issue source of truth after repository creation
+Date: 2026-06-21
 Product: Telegent
 
-These drafts are the founding issue set for a future `telegent` repository.
-They are written to be moved into GitHub Issues after the repository is created.
-Because the target repo does not exist yet, tickets that reference repo files use
-planned paths and must be verified immediately after Ticket 1 scaffolds the
-repo.
+These drafts are the founding issue source material for
+`realproject7/telegent`. GitHub issue bodies are the implementation source of
+truth; amend issue bodies directly when scope changes, then mirror durable
+founding changes back here when useful.
 
 ## Labels
 
@@ -47,10 +46,9 @@ not used as product behavior.
 
 ## Source Documents
 
-- `/Users/cho/Projects/docs/PROPOSAL-telegent.md` initially; Ticket 1 must copy
-  this into the repo as `/Users/cho/Projects/telegent/docs/PROPOSAL.md` so blind
-  implementation agents can resolve section references.
-- `/Users/cho/Projects/docs/MANUAL-po-agent-workflow.md`
+- `docs/PROPOSAL.md`
+- `docs/FOUNDING-TICKETS.md`
+- PO workflow source: `/Users/cho/Projects/docs/MANUAL-po-agent-workflow.md`
 - `/Users/cho/Projects/docs/telegent-quadwork-review-notes-codex.md`
 - `/Users/cho/Projects/docs/telegent-quadwork-edits-opus.md`
 - `/Users/cho/Projects/telegent-lite/server.js`
@@ -171,9 +169,11 @@ verified paths, test commands, and package boundaries.
 
 ### Where
 
-- Planned repo: `/Users/cho/Projects/telegent/`
-- Reference prototype: `/Users/cho/Projects/telegent-lite/server.js`
-- Source proposal: `/Users/cho/Projects/docs/PROPOSAL-telegent.md`
+- Repo root: `.`
+- Operator local checkout: `/Users/cho/Projects/telegent/`
+- QuadWork VPS checkout: `~/telegent/`
+- Reference prototype: `/Users/cho/Projects/telegent-lite/server.js` (operator-local dogfood reference only; do not import from it)
+- Source proposal: `docs/PROPOSAL.md`
 
 ### Scope
 
@@ -210,11 +210,11 @@ recoverable, and easy for agents to inspect.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/protocol/`
-- Planned: `/Users/cho/Projects/telegent/src/storage/`
-- Planned: `/Users/cho/Projects/telegent/test/fixtures/`
-- Reference: `/Users/cho/Projects/telegent-lite/server.js`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/protocol/`
+- Repo path: `src/storage/`
+- Repo path: `test/fixtures/`
+- Reference: `/Users/cho/Projects/telegent-lite/server.js` (operator-local dogfood reference only; do not import from it)
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §9, §10, §12.1-§12.4
 
 ### Scope
@@ -263,10 +263,10 @@ long-poll lifecycle handled in Ticket 3B.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/server/`
-- Planned: `/Users/cho/Projects/telegent/src/auth/`
-- Planned: `/Users/cho/Projects/telegent/test/server/`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/server/`
+- Repo path: `src/auth/`
+- Repo path: `test/server/`
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §9.4, §11.1, §12.1-§12.6, §12.8, §13, §15.1
 
 ### Scope
@@ -327,9 +327,9 @@ the room without push infrastructure.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/server/wait.ts`
-- Planned: `/Users/cho/Projects/telegent/test/server/wait.test.ts`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/server/wait.ts`
+- Repo path: `test/server/wait.test.ts`
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §8.3, §9.6, §12.5, §12.7, §12.8, §13.6
 
 ### Scope
@@ -369,9 +369,9 @@ leaving, inspecting, and closing rooms.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/cli/`
-- Planned: `/Users/cho/Projects/telegent/src/commands/room/`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/cli/`
+- Repo path: `src/commands/room/`
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §8.1, §8.2, §9.3, §17 Phase 1
 
 ### Scope
@@ -414,10 +414,10 @@ reading, attendance, reply, and handoff commands.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/commands/message/`
-- Planned: `/Users/cho/Projects/telegent/src/commands/watch/`
-- Planned: `/Users/cho/Projects/telegent/src/handoff/`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/commands/message/`
+- Repo path: `src/commands/watch/`
+- Repo path: `src/handoff/`
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §8.3-§8.6, §13.6, §14, §19.7
 
 ### Scope
@@ -459,11 +459,11 @@ served by the room server.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/browser/room.html`
-- Planned: `/Users/cho/Projects/telegent/src/browser/room.css`
-- Planned: `/Users/cho/Projects/telegent/src/browser/room.js`
-- Optional design package: `/Users/cho/Projects/z-design/telegent-design/`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/browser/room.html`
+- Repo path: `src/browser/room.css`
+- Repo path: `src/browser/room.js`
+- Optional design package: `/Users/cho/Projects/z-design/telegent-design/` (operator-local, outside repo)
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §15.1-§15.4
 
 ### Scope
@@ -513,10 +513,10 @@ temporary chat room without turning it into a heavy orchestrator.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/src/browser/`
-- Planned: `/Users/cho/Projects/telegent/src/commands/export/`
-- Planned: `/Users/cho/Projects/telegent/src/commands/doctor/`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `src/browser/`
+- Repo path: `src/commands/export/`
+- Repo path: `src/commands/doctor/`
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §7, §15.3-§15.5, §16, §17 Phase 2
 
 ### Scope
@@ -556,10 +556,10 @@ product: multiple agents and a human in one temporary room.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/test/e2e/`
-- Planned: `/Users/cho/Projects/telegent/docs/dogfood/`
-- Current dogfood log: `/Users/cho/.telegent-lite/rooms/telegent-final-foreground/messages.jsonl`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`,
+- Repo path: `test/e2e/`
+- Repo path: `docs/dogfood/`
+- Current dogfood logs: `/Users/cho/.telegent-lite/rooms/` (operator-local references only; sanitize before copying fixtures)
+- In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §16, §20, §22
 
 ### Scope
@@ -598,10 +598,10 @@ room, invite participants, and avoid the major security mistakes.
 
 ### Where
 
-- Planned: `/Users/cho/Projects/telegent/README.md`
-- Planned: `/Users/cho/Projects/telegent/SECURITY.md`
-- Planned: `/Users/cho/Projects/telegent/docs/`
-- In-repo proposal copy: `/Users/cho/Projects/telegent/docs/PROPOSAL.md`
+- Repo path: `README.md`
+- Repo path: `SECURITY.md`
+- Repo path: `docs/`
+- In-repo proposal copy: `docs/PROPOSAL.md`
 
 ### Scope
 
