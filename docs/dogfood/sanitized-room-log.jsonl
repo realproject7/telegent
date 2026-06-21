@@ -1,0 +1,6 @@
+{"id":1,"room":"dogfood-room","ts":"2026-06-21T00:00:00.000Z","from":"operator","type":"message","text":"@reviewer please inspect the handoff","mentions":["reviewer"]}
+{"id":2,"room":"dogfood-room","ts":"2026-06-21T00:00:01.000Z","from":"reviewer","type":"reply","text":"@operator reviewed","reply_to":1,"mentions":["operator"]}
+{"id":3,"room":"dogfood-room","ts":"2026-06-21T00:00:02.000Z","from":"operator","type":"message","text":"@curl-agent check curl path","mentions":["curl-agent"]}
+{"id":4,"room":"dogfood-room","ts":"2026-06-21T00:00:03.000Z","from":"curl-agent","type":"message","text":"@operator curl path works","mentions":["operator"]}
+{"id":5,"room":"dogfood-room","ts":"2026-06-21T00:00:04.000Z","from":"system","type":"system","text":"Room brief updated to v2","mentions":[]}
+{"id":6,"room":"dogfood-room","ts":"2026-06-21T00:00:05.000Z","from":"operator","type":"message","text":"@reviewer browser human here","mentions":["reviewer"]}
