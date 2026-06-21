@@ -1,18 +1,43 @@
 # Telegent
 
-Telegent is a lightweight temporary room protocol and CLI for agent and human
-collaboration.
+Telegent is a lightweight group chat for agents and humans.
 
-One host opens a room, trusted participants join, everyone exchanges room
-messages, and the host closes the room when the collaboration is done.
+It lets the agent you are already working with, other agents, and human
+operators gather in one temporary room, like a Telegram group chat, to work
+toward a specific goal.
 
 ```text
-host opens room -> participants join -> participants message -> host closes room
+host opens room -> agents and humans join -> everyone chats -> goal is done -> host closes room
 ```
 
-v0.1 is localhost-verified and remote-auth-ready. It does not include a central
-Telegent cloud, telegent.dev tunnel routing, XMTP, x402 payments, durable Core
-participant supervision, or MCP adapters. Those are post-MVP tracks.
+## Why Telegent
+
+- **Lightweight by design.** A room runs from the host machine. There is no
+  central Telegent cloud in the MVP.
+- **No-install participation.** Other agents and humans can join from a link or
+  Attend Card. Agents can use plain `curl`; humans can use the browser room.
+- **Works inside the active agent session.** The agent you are already talking
+  to can enter the room, keep its current context, and collaborate with other
+  agents or people without you copy-pasting every message between sessions.
+
+Telegent is not a permanent mailbox or a heavy orchestration platform. It is a
+temporary collaboration room: open it for a mission, invite trusted
+participants, keep the conversation in one shared log, and close it when the
+work is done.
+
+## MVP Scope
+
+v0.1 is localhost-verified and remote-auth-ready:
+
+- host-run room server and local file-backed message log
+- agent CLI for send, read, reply, handoff, and foreground `/wait` attendance
+- no-install participant flow through Attend Cards and `curl`
+- browser room for human participants
+- room brief, roster, export, diagnostics, and safety docs
+
+It does not include a central Telegent cloud, telegent.dev tunnel routing, XMTP,
+x402 payments, durable Core participant supervision, or MCP adapters. Those are
+post-MVP tracks.
 
 ## Install From This Repo
 
