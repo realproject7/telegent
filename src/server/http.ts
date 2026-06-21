@@ -12,12 +12,20 @@ import {
   readRoomState,
   roomPaths,
   updateBrief,
+  updateAttendancePolicy,
   upsertParticipant,
   MAX_BRIEF_LENGTH,
   RoomLogFullError
 } from "../storage/index.js";
-import type { Participant, RoomBrief } from "../protocol/index.js";
-import { assertSafeSlug, normalizeBaseUrl, renderAgentInstructions, roomUrl } from "../protocol/index.js";
+import type { AttendancePolicy, Participant, RoomBrief } from "../protocol/index.js";
+import {
+  assertSafeSlug,
+  describeAttendancePolicy,
+  normalizeBaseUrl,
+  parseAttendancePolicy,
+  renderAgentInstructions,
+  roomUrl
+} from "../protocol/index.js";
 import { errorBody, HttpError } from "./errors.js";
 import { buildWaitResponse, defaultWaitHub, type WaitHub } from "./wait.js";
 
@@ -80,6 +88,7 @@ async function handleRequest(context: RequestContext): Promise<void> {
   if (context.req.method === "GET" && pathname === "/room.js") return serveBrowserAsset(context, "room.js", "text/javascript; charset=utf-8");
   if (context.req.method === "GET" && pathname === "/brief") return getBrief(context);
   if (context.req.method === "POST" && pathname === "/brief") return postBrief(context);
+  if (context.req.method === "POST" && pathname === "/attendance") return postAttendance(context);
   if (context.req.method === "GET" && pathname === "/card") return getCard(context);
   if (context.req.method === "POST" && pathname === "/join") return postJoin(context);
   if (context.req.method === "GET" && pathname === "/messages") return getMessages(context);
@@ -126,8 +135,38 @@ async function postBrief(context: RequestContext): Promise<void> {
 
 async function getCard(context: RequestContext): Promise<void> {
   const auth = await requireParticipant(context, { allowQueryToken: true });
-  const brief = await readBrief(context.options.root, context.options.roomId);
-  sendPlain(context.res, 200, renderAttendCard(context.options.baseUrl, auth.participant.alias, auth.token, brief));
+  const paths = roomPaths(context.options.root, context.options.roomId);
+  const [brief, state] = await Promise.all([
+    readBrief(context.options.root, context.options.roomId),
+    readRoomState(paths)
+  ]);
+  sendPlain(
+    context.res,
+    200,
+    renderAttendCard(context.options.baseUrl, auth.participant.alias, auth.token, brief, state.attendance_policy)
+  );
+}
+
+async function postAttendance(context: RequestContext): Promise<void> {
+  const auth = await requireParticipant(context);
+  requireHost(auth.participant);
+  const body = await readJsonBody<{ policy?: unknown }>(context);
+  if (typeof body.policy !== "string") throw new HttpError(400, "invalid_policy", "attendance policy is required");
+  let policy: AttendancePolicy;
+  try {
+    policy = parseAttendancePolicy(body.policy);
+  } catch (error) {
+    throw new HttpError(400, "invalid_policy", error instanceof Error ? error.message : "invalid attendance policy");
+  }
+  const state = await updateAttendancePolicy({
+    root: context.options.root,
+    roomId: context.options.roomId,
+    policy,
+    updatedBy: auth.participant.alias
+  });
+  await appendSystem(context, `Attendance policy set to ${policy}`);
+  context.options.waitHub.notify(context.options.roomId);
+  sendJson(context.res, 200, { ok: true, attendance_policy: state.attendance_policy });
 }
 
 async function postJoin(context: RequestContext): Promise<void> {
@@ -147,7 +186,8 @@ async function postJoin(context: RequestContext): Promise<void> {
 }
 
 async function getMessages(context: RequestContext): Promise<void> {
-  await requireParticipant(context);
+  const auth = await requireParticipant(context);
+  await touchParticipant(context, auth.participant, auth.participant.attention);
   const sinceId = parseSinceId(context.url.searchParams.get("since_id"));
   const messages = (await readMessages(context.options.root, context.options.roomId)).filter(
     (message) => message.id > sinceId
@@ -162,6 +202,7 @@ async function getMessages(context: RequestContext): Promise<void> {
 async function postMessage(context: RequestContext): Promise<void> {
   const auth = await requireParticipant(context);
   const body = await readJsonBody<unknown>(context);
+  await touchParticipant(context, auth.participant, auth.participant.attention);
   await requireRoomOpen(context);
   enforceRateLimit(`${context.options.roomId}:${auth.participant.alias}`, context.options.rateLimitPerMinute);
   enforceLoopGuard(context.options.roomId, auth.participant, context.options.loopGuardLimit);
@@ -182,6 +223,9 @@ async function postMessage(context: RequestContext): Promise<void> {
 
 async function getWait(context: RequestContext): Promise<void> {
   const auth = await requireParticipant(context, { allowRemoved: true });
+  if (auth.participant.removed_at === undefined) {
+    await touchParticipant(context, auth.participant, "attending");
+  }
   const sinceId = parseSinceId(context.url.searchParams.get("since_id"));
   const participantParam = context.url.searchParams.get("participant");
   if (participantParam !== null && participantParam !== auth.participant.alias) {
@@ -273,9 +317,22 @@ async function getStatus(context: RequestContext): Promise<void> {
     is_host: auth.participant.is_host,
     room_status: state.status,
     brief_version: state.brief_version,
+    attendance_policy: state.attendance_policy,
     brief_updated_at: state.brief_updated_at,
     brief_updated_by: state.brief_updated_by,
     participants: participants.map(({ token_hash, ...participant }) => participant)
+  });
+}
+
+async function touchParticipant(
+  context: RequestContext,
+  participant: Participant,
+  attention: Participant["attention"]
+): Promise<void> {
+  await upsertParticipant(context.options.root, context.options.roomId, {
+    ...participant,
+    attention,
+    lastSeenAt: new Date().toISOString()
   });
 }
 
@@ -455,17 +512,28 @@ function parseSinceId(raw: string | null): number {
   return parsed;
 }
 
-export function renderAttendCard(baseUrl: string, alias: string, token: string, brief: RoomBrief): string {
+export function renderAttendCard(
+  baseUrl: string,
+  alias: string,
+  token: string,
+  brief: RoomBrief,
+  attendancePolicy: AttendancePolicy = "manual-ok"
+): string {
   return [
     `# Telegent Attend Card: ${alias}`,
     "",
     "## Room Brief",
     brief.body || "(empty)",
     "",
+    "## Attendance Policy",
+    `Policy: ${attendancePolicy}`,
+    describeAttendancePolicy(attendancePolicy),
+    "",
     "## Commands",
     `curl -s "${roomUrl(baseUrl, `/card?participant=${alias}&token=${token}`)}"`,
     `curl -s -X POST "${roomUrl(baseUrl, "/join")}" -H "Authorization: Bearer ${token}"`,
     `curl -s "${roomUrl(baseUrl, `/wait?participant=${alias}&since_id=0`)}" -H "Authorization: Bearer ${token}"`,
+    `telegent attend --json`,
     `curl -s "${roomUrl(baseUrl, "/messages?since_id=0")}" -H "Authorization: Bearer ${token}"`,
     `curl -s -X POST "${roomUrl(baseUrl, "/messages")}" -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data '{"text":"hello"}'`,
     "",

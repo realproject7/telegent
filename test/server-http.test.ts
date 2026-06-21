@@ -107,7 +107,17 @@ test("HTTP core exposes every non-wait endpoint", async () => {
     const status = await jsonFetch(fixture, "GET", "/status", fixture.hostToken);
     assert.equal(status.status, 200);
     assert.equal(status.body.brief_version, 2);
+    assert.equal(status.body.attendance_policy, "manual-ok");
     assert.equal(status.body.participants.some((entry: { token_hash?: string }) => entry.token_hash), false);
+
+    const attendance = await jsonFetch(fixture, "POST", "/attendance", fixture.hostToken, {
+      policy: "agents-foreground"
+    });
+    assert.equal(attendance.status, 200);
+    assert.equal(attendance.body.attendance_policy, "agents-foreground");
+
+    const updatedStatus = await jsonFetch(fixture, "GET", "/status", fixture.hostToken);
+    assert.equal(updatedStatus.body.attendance_policy, "agents-foreground");
 
     const leave = await jsonFetch(fixture, "POST", "/leave", fixture.agentToken);
     assert.equal(leave.status, 200);

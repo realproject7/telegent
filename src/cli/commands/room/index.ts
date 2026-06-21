@@ -6,12 +6,13 @@ import {
   readParticipants,
   readRoomState,
   roomPaths,
+  updateAttendancePolicy,
   updateBrief,
   upsertParticipant,
   writeParticipants
 } from "../../../storage/index.js";
 import type { Participant, ParticipantKind, RoomBrief } from "../../../protocol/index.js";
-import { normalizeBaseUrl, roomUrl } from "../../../protocol/index.js";
+import { normalizeBaseUrl, parseAttendancePolicy, roomUrl, type AttendancePolicy } from "../../../protocol/index.js";
 import { createToken } from "../../../auth/index.js";
 import { createRoomHttpServer, participantTokenHash, renderAttendCard } from "../../../server/index.js";
 import { parseArgs, flagBoolean, flagString } from "../../args.js";
@@ -22,6 +23,7 @@ export async function runRoomCommand(argv: string[], context: CliContext): Promi
   const [subcommand, ...rest] = argv;
   if (subcommand === "start") return roomStart(rest, context);
   if (subcommand === "brief") return roomBrief(rest, context);
+  if (subcommand === "attendance") return roomAttendance(rest, context);
   if (subcommand === "serve") return roomServe(rest, context);
   if (subcommand === "invite") return roomInvite(rest, context);
   if (subcommand === "invite-card") return roomInviteCard(rest, context);
@@ -48,6 +50,7 @@ async function roomStart(argv: string[], context: CliContext): Promise<number> {
     roomId,
     hostAlias: alias,
     briefBody,
+    attendancePolicy: parseAttendancePolicy(flagString(args, "attendance") ?? "manual-ok"),
     ...(expiresAt === undefined ? {} : { expiresAt: new Date(expiresAt) })
   });
   await writeParticipants(context.home, roomId, [participant(alias, "human", true, token)]);
@@ -73,6 +76,76 @@ async function roomBrief(argv: string[], context: CliContext): Promise<number> {
     return emit(context, flagBoolean(args, "json"), { ok: true, brief });
   }
   throw new Error("room brief requires view or set");
+}
+
+async function roomAttendance(argv: string[], context: CliContext): Promise<number> {
+  const [action, ...rest] = argv;
+  const current = await readCurrent(context.home);
+  const args = parseArgs(rest);
+  if (action === "view") {
+    const state = await readRoomState(roomPaths(context.home, current.roomId));
+    return emit(
+      context,
+      flagBoolean(args, "json"),
+      { ok: true, attendance_policy: state.attendance_policy },
+      `${state.attendance_policy}\n`
+    );
+  }
+  if (action === "set") {
+    const policy = parseAttendancePolicy(flagString(args, "policy") ?? args.positional[0] ?? "");
+    const state =
+      (await postAttendanceToServer(current.baseUrl, current.token, policy)) ??
+      (await updateAttendancePolicyDirect(context, current.roomId, current.alias, policy));
+    return emit(context, flagBoolean(args, "json"), { ok: true, attendance_policy: state.attendance_policy });
+  }
+  throw new Error("room attendance requires view or set");
+}
+
+async function postAttendanceToServer(
+  baseUrl: string,
+  token: string,
+  policy: AttendancePolicy
+): Promise<{ attendance_policy: AttendancePolicy } | null> {
+  try {
+    const response = await fetch(new URL("/attendance", `${normalizeBaseUrl(baseUrl)}/`), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ policy })
+    });
+    const payload = await readResponseJson<{ attendance_policy?: AttendancePolicy; message?: string }>(response);
+    if (response.status === 404) return null;
+    if (!response.ok || payload.attendance_policy === undefined) {
+      throw new Error(payload.message ?? `attendance update failed with HTTP ${response.status}`);
+    }
+    return { attendance_policy: payload.attendance_policy };
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
+async function updateAttendancePolicyDirect(
+  context: CliContext,
+  roomId: string,
+  alias: string,
+  policy: AttendancePolicy
+): Promise<{ attendance_policy: AttendancePolicy }> {
+  const state = await updateAttendancePolicy({
+    root: context.home,
+    roomId,
+    policy,
+    updatedBy: alias
+  });
+  await appendServerMessage({
+    root: context.home,
+    roomId,
+    from: "system",
+    text: `Attendance policy set to ${state.attendance_policy}`
+  });
+  return { attendance_policy: state.attendance_policy };
 }
 
 async function postBriefToServer(baseUrl: string, token: string, body: string): Promise<RoomBrief | null> {
@@ -145,8 +218,11 @@ async function roomInviteCard(argv: string[], context: CliContext): Promise<numb
   if (alias === undefined) throw new Error("participant alias is required");
   const current = await readCurrent(context.home);
   const token = await readToken(context.home, current.roomId, alias);
-  const brief = await readBrief(context.home, current.roomId);
-  const card = renderAttendCard(current.baseUrl, alias, token, brief);
+  const [brief, state] = await Promise.all([
+    readBrief(context.home, current.roomId),
+    readRoomState(roomPaths(context.home, current.roomId))
+  ]);
+  const card = renderAttendCard(current.baseUrl, alias, token, brief, state.attendance_policy);
   return emit(context, flagBoolean(args, "json"), { ok: true, room: current.roomId, alias, card }, `${card}\n`);
 }
 

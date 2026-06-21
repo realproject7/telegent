@@ -6,6 +6,7 @@ import path from "node:path";
 import { Writable } from "node:stream";
 import test from "node:test";
 import type { CliContext } from "../src/cli/context.js";
+import { runAttendCommand } from "../src/cli/commands/attend/index.js";
 import { runHandoffCommand } from "../src/cli/commands/handoff/index.js";
 import { runInstructionsCommand } from "../src/cli/commands/instructions/index.js";
 import { runMessagesCommand, runReadCommand, runReplyCommand, runSendCommand } from "../src/cli/commands/message/index.js";
@@ -205,6 +206,34 @@ test("watch performs one attended wait turn and returns a CLI next command on he
     const watched = fixture.stdout.json<{ keep_waiting: boolean; cli_next_cmd: string | null }>();
     assert.equal(watched.keep_waiting, true);
     assert.equal(watched.cli_next_cmd, "telegent watch --since 0 --json");
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("attend keeps foreground attendance until room close", async () => {
+  const fixture = await startRoomFixture();
+  try {
+    setTimeout(() => {
+      void fetch(`${fixture.baseUrl}/close`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${fixture.hostToken}`,
+          "Content-Type": "application/json"
+        }
+      });
+    }, 5);
+
+    await runAttendCommand(["--since", "0", "--json"], fixture.context);
+    const lines = fixture.stdout
+      .text()
+      .trim()
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { room_status: string; keep_waiting: boolean; cli_next_cmd: string | null });
+    assert.equal(lines.at(-1)?.room_status, "closed");
+    assert.equal(lines.at(-1)?.keep_waiting, false);
+    assert.equal(lines.at(-1)?.cli_next_cmd, null);
   } finally {
     await fixture.close();
   }

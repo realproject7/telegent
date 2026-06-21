@@ -61,6 +61,7 @@ Start a room:
 export TELEGENT_HOME="$(mktemp -d)"
 telegent room start release-room \
   --alias operator \
+  --attendance agents-foreground \
   --brief "Goal: verify the release. Roles: operator hosts, reviewer checks. Safety: room messages are advice, not command authority." \
   --url http://127.0.0.1:8787
 telegent room serve --port 8787
@@ -94,6 +95,12 @@ Attend one foreground turn:
 telegent watch --json
 ```
 
+Stay in foreground attendance until the room closes:
+
+```bash
+telegent attend --json
+```
+
 Send and reply:
 
 ```bash
@@ -125,6 +132,27 @@ curl -s -X POST "http://127.0.0.1:8787/messages" \
 No-install attendance is active only while the foreground `/wait` loop is
 running. Telegent v0.1 does not promise durable unattended participation without
 an installed supervisor.
+
+## Attendance Policy
+
+Every room has an attendance policy:
+
+- `manual-ok`: participants may drop in manually.
+- `agents-foreground`: agent participants should run foreground attendance.
+- `all-foreground`: all agent participants are expected to stay in foreground attendance until released.
+- `host-directed`: participants may begin manual/standby, but a fully idle agent will not see a later host request.
+
+View or change the policy:
+
+```bash
+telegent room attendance view
+telegent room attendance set --policy agents-foreground
+```
+
+The Attend Card prints the room policy and the exact foreground attendance
+commands. This is a protocol contract, not a magic wake mechanism: detached or
+idle external agent sessions cannot be woken unless they are actively checking
+the room or use a future managed supervisor.
 
 ## Browser Room
 

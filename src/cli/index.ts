@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { buildHelpText, VERSION } from "./help.js";
 import { createCliContext } from "./context.js";
+import { runAttendCommand } from "./commands/attend/index.js";
 import { runDoctorCommand } from "./commands/doctor/index.js";
 import { runExportCommand } from "./commands/export/index.js";
 import { runHandoffCommand } from "./commands/handoff/index.js";
@@ -30,6 +31,7 @@ async function main(argv: string[]): Promise<number> {
   if (command === "read") return runReadCommand(rest, createCliContext());
   if (command === "reply") return runReplyCommand(rest, createCliContext());
   if (command === "watch") return runWatchCommand(rest, createCliContext());
+  if (command === "attend") return runAttendCommand(rest, createCliContext());
   if (command === "handoff") return runHandoffCommand(rest, createCliContext());
   if (command === "export") return runExportCommand(rest, createCliContext());
   if (command === "doctor") return runDoctorCommand(rest, createCliContext());

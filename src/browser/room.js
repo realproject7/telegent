@@ -13,6 +13,7 @@ const shell = document.querySelector(".room-shell");
 const authError = document.getElementById("auth-error");
 const roomTitle = document.getElementById("room-title");
 const roomStatus = document.getElementById("room-status");
+const attendancePolicy = document.getElementById("attendance-policy");
 const participantCount = document.getElementById("participant-count");
 const briefVersion = document.getElementById("brief-version");
 const briefBody = document.getElementById("brief-body");
@@ -100,6 +101,7 @@ async function loadStatus() {
   roomTitle.textContent = payload.room;
   roomStatus.textContent = payload.room_status;
   roomStatus.dataset.status = payload.room_status;
+  attendancePolicy.textContent = payload.attendance_policy || "manual-ok";
   if (payload.brief_version > state.briefVersion) {
     briefRefresh.hidden = false;
     briefVersion.textContent = `v${payload.brief_version} available`;

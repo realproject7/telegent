@@ -93,6 +93,7 @@ test("browser room joins with fragment token, sends, receives, and renders safel
     const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
     await page.goto(`${fixture.baseUrl}/#token=${fixture.hostToken}`);
     await page.waitForSelector("text=Ship the browser room safely.");
+    await page.waitForSelector("text=manual-ok");
     assert.equal(page.url(), `${fixture.baseUrl}/`);
 
     await page.fill("#message-text", "@reviewer hello from browser");

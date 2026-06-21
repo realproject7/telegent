@@ -1,8 +1,9 @@
 export type ParticipantKind = "agent" | "human" | "system";
 export type ParticipantLocation = "local" | "remote";
 export type ParticipantInstall = "lite" | "core" | "host";
-export type ParticipantAttention = "manual" | "attending" | "away";
+export type ParticipantAttention = "manual" | "attending" | "standby" | "away" | "managed";
 export type RoomStatus = "open" | "closed";
+export type AttendancePolicy = "manual-ok" | "agents-foreground" | "all-foreground" | "host-directed";
 export type MessageType =
   | "message"
   | "question"
@@ -24,6 +25,7 @@ export interface RoomBrief {
 export interface RoomState {
   id: string;
   status: RoomStatus;
+  attendance_policy: AttendancePolicy;
   createdAt: string;
   updatedAt: string;
   expires_at?: string;

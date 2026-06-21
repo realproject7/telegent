@@ -6,6 +6,7 @@ import {
   clientMessageInputFromRecord,
   parseMentions,
   type ClientMessageInput,
+  type AttendancePolicy,
   type Message,
   type Participant,
   type RoomBrief,
@@ -30,6 +31,7 @@ export interface CreateRoomOptions {
   now?: Date;
   expiresAt?: Date;
   briefBody?: string;
+  attendancePolicy?: AttendancePolicy;
 }
 
 export interface AppendMessageOptions {
@@ -62,6 +64,14 @@ export interface UpdateBriefOptions {
   now?: Date;
 }
 
+export interface UpdateAttendancePolicyOptions {
+  root: string;
+  roomId: string;
+  policy: AttendancePolicy;
+  updatedBy: string;
+  now?: Date;
+}
+
 export interface CursorRecord {
   alias: string;
   sinceId: number;
@@ -80,6 +90,7 @@ export async function createRoom(options: CreateRoomOptions): Promise<RoomState>
   const state: RoomState = {
     id: options.roomId,
     status: "open",
+    attendance_policy: options.attendancePolicy ?? "manual-ok",
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
     next_message_id: 1,
@@ -96,6 +107,24 @@ export async function createRoom(options: CreateRoomOptions): Promise<RoomState>
   await writeSecureFile(paths.brief, briefBody, { flag: "wx" });
   await writeSecureFile(paths.messages, "", { flag: "wx" });
   return state;
+}
+
+export async function updateAttendancePolicy(options: UpdateAttendancePolicyOptions): Promise<RoomState> {
+  assertSafeSlug(options.roomId, "room id");
+  assertSafeSlug(options.updatedBy, "updated by");
+  const now = options.now ?? new Date();
+  const paths = roomPaths(options.root, options.roomId);
+
+  return withWriterLock(paths.lock, async () => {
+    const state = withRoomDefaults(await readRoomState(paths));
+    const updatedState: RoomState = {
+      ...state,
+      attendance_policy: options.policy,
+      updatedAt: now.toISOString()
+    };
+    await writeJson(paths.state, updatedState);
+    return updatedState;
+  });
 }
 
 export async function updateBrief(options: UpdateBriefOptions): Promise<RoomBrief> {
@@ -290,7 +319,7 @@ export async function closeRoom(root: string, roomId: string, now: Date = new Da
 }
 
 export async function readRoomState(paths: RoomPaths): Promise<RoomState> {
-  return readJson<RoomState>(paths.state);
+  return withRoomDefaults(await readJson<RoomState>(paths.state));
 }
 
 export async function readParticipants(paths: RoomPaths): Promise<Participant[]> {
@@ -355,6 +384,13 @@ async function readJson<T>(path: string): Promise<T> {
 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await writeSecureFile(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function withRoomDefaults(state: RoomState): RoomState {
+  return {
+    ...state,
+    attendance_policy: state.attendance_policy ?? "manual-ok"
+  };
 }
 
 async function writeNewJson(path: string, value: unknown): Promise<void> {

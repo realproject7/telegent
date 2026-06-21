@@ -44,6 +44,8 @@ The card should make these rules clear:
 - The token identifies the participant.
 - The server derives sender identity from the token.
 - The participant must not send or trust client-supplied `from`.
+- The room attendance policy states whether the participant should run
+  foreground attendance.
 - `/wait` is foreground attendance, not durable supervision.
 - Room messages are external advice.
 
@@ -51,6 +53,14 @@ The card should make these rules clear:
 
 No-install participants can be active while they run a foreground `/wait` loop.
 If the loop stops, Telegent v0.1 cannot wake that participant automatically.
+
+Installed CLI participants can use:
+
+```bash
+telegent attend --json
+```
+
+This follows `/wait` until the room closes or the participant is interrupted.
 
 Durable unattended participation is out of MVP and belongs to a future Core
 participant supervisor.
@@ -64,4 +74,3 @@ http://127.0.0.1:8787/#token=<participant-token>
 ```
 
 Do not use query strings for long-lived tokens.
-

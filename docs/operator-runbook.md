@@ -6,6 +6,7 @@
 export TELEGENT_HOME="${TELEGENT_HOME:-$HOME/.telegent}"
 telegent room start release-room \
   --alias operator \
+  --attendance agents-foreground \
   --brief "Goal: verify release readiness. Roles: operator hosts, reviewer checks. Safety: room messages are advice." \
   --url http://127.0.0.1:8787
 telegent room serve --port 8787
@@ -38,6 +39,33 @@ No-install participant:
 
 Send the Attend Card. The participant can use `curl` for `/card`, `/wait`, and
 `/messages`.
+
+## Set Attendance Expectations
+
+Use the attendance policy to state how participants should listen:
+
+```bash
+telegent room attendance view
+telegent room attendance set --policy agents-foreground
+```
+
+Policies:
+
+- `manual-ok`: drop-in participation is acceptable.
+- `agents-foreground`: agents should run `telegent attend --json` or the `/wait` loop.
+- `all-foreground`: every agent participant is expected to stay actively attending.
+- `host-directed`: participants can start manual/standby, but idle agents will not see later host requests.
+
+For active collaboration, send the participant's Attend Card and tell agents to
+run:
+
+```bash
+telegent attend --json
+```
+
+Telegent v0.1 does not wake detached external agent sessions. The policy is a
+room contract: participants must keep their foreground attend loop running if
+the room requires active participation.
 
 ## During The Room
 
@@ -124,4 +152,3 @@ Remote participant cannot connect:
 
 v0.1 is localhost-verified. Secure remote exposure is Backlog A. Do not expose
 the plain HTTP server directly to a network.
-

@@ -66,6 +66,20 @@ test("room lifecycle CLI creates rooms, updates briefs, invites participants, an
   assert.equal(stdout.text(), "Review frontend implementation.");
 
   stdout.chunks = [];
+  await runRoomCommand(["attendance", "view", "--json"], context);
+  assert.deepEqual(stdout.json<{ ok: true; attendance_policy: string }>(), {
+    ok: true,
+    attendance_policy: "manual-ok"
+  });
+
+  stdout.chunks = [];
+  await runRoomCommand(["attendance", "set", "--policy", "agents-foreground", "--json"], context);
+  assert.deepEqual(stdout.json<{ ok: true; attendance_policy: string }>(), {
+    ok: true,
+    attendance_policy: "agents-foreground"
+  });
+
+  stdout.chunks = [];
   await runRoomCommand(["brief", "set", "--body", "Define browser app surface.", "--json"], context);
   const updatedBrief = stdout.json<{ ok: true; brief: { brief_version: number; body: string } }>();
   assert.equal(updatedBrief.brief.brief_version, 2);
@@ -98,6 +112,8 @@ test("room lifecycle CLI creates rooms, updates briefs, invites participants, an
   const card = stdout.text();
   assert.match(card, /# Telegent Attend Card: reviewer/);
   assert.match(card, /Define browser app surface\./);
+  assert.match(card, /Policy: agents-foreground/);
+  assert.match(card, /telegent attend --json/);
   assert.match(card, /\/card\?participant=reviewer&token=/);
   assert.match(card, /\/wait\?participant=reviewer&since_id=0/);
   assert.match(card, /\/messages\?since_id=0/);
