@@ -91,7 +91,13 @@ export class TunnelBroker {
       status: "active"
     };
     this.routes.set(slug, route);
-    if (typeof registration.target === "string") this.targets.set(slug, registration.target);
+    // Always re-sync the target so a re-registration without a target cannot
+    // inherit a previous route's forwarding host.
+    if (registration.target !== undefined) {
+      this.targets.set(slug, registration.target);
+    } else {
+      this.targets.delete(slug);
+    }
     return { ...route };
   }
 
@@ -122,6 +128,7 @@ export class TunnelBroker {
   closeRoute(request: RouteCloseRequest): RouteCloseResult {
     const route = this.findByConnection(request.route_id, request.host_connection_id);
     route.status = "closed";
+    this.targets.delete(route.route_slug);
     return { ok: true, route_slug: route.route_slug, status: "closed" };
   }
 
