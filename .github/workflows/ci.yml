@@ -17,16 +17,13 @@ jobs:
   release-gates:
     name: Release gates
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
     timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
 
       - name: Enable pnpm
         run: |
@@ -35,9 +32,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Chromium headless shell
-        run: pnpm exec playwright install --only-shell chromium
 
       - name: Lint
         run: pnpm lint
@@ -52,4 +46,4 @@ jobs:
         run: pnpm no-stub
 
       - name: Whitespace check
-        run: git diff --check
+        run: git -C "/__w/${{ github.event.repository.name }}/${{ github.event.repository.name }}" diff --check
