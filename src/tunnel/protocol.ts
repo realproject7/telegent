@@ -21,6 +21,11 @@ export type TunnelErrorCode =
   | "route_expired"
   | "route_closed"
   | "unsupported_route"
+  | "route_request_limit"
+  | "wait_limit"
+  | "rate_limited"
+  | "request_too_large"
+  | "response_too_large"
   | "internal_error";
 
 /**
