@@ -15,6 +15,7 @@ import type { Participant, ParticipantKind, RoomBrief } from "../../../protocol/
 import { normalizeBaseUrl, parseAttendancePolicy, roomUrl, type AttendancePolicy } from "../../../protocol/index.js";
 import { createToken } from "../../../auth/index.js";
 import { createRoomHttpServer, participantTokenHash, renderAttendCard } from "../../../server/index.js";
+import { readPublicBaseUrl } from "../../../tunnel/index.js";
 import { parseArgs, flagBoolean, flagString } from "../../args.js";
 import type { CliContext } from "../../context.js";
 import { readCurrent, readToken, writeCurrent, writeToken } from "../../state.js";
@@ -297,18 +298,21 @@ async function roomServe(argv: string[], context: CliContext): Promise<number> {
   const publicUrl = new URL(flagString(args, "url") ?? current.baseUrl);
   if (flagString(args, "url") === undefined) publicUrl.port = String(port);
   validateServeExposure({ host, publicUrl, allowRemote });
-  const publicBaseUrl = normalizeBaseUrl(publicUrl.toString());
+  const localBaseUrl = normalizeBaseUrl(publicUrl.toString());
   const server = createRoomHttpServer({
     root: context.home,
     roomId: current.roomId,
-    baseUrl: publicBaseUrl,
-    allowInsecureRemote: allowRemote
+    baseUrl: localBaseUrl,
+    allowInsecureRemote: allowRemote,
+    // After `tunnel start` publishes a broker URL, advertise it in cards and
+    // wait commands; otherwise keep advertising the local serve URL.
+    publicBaseUrl: () => readPublicBaseUrl(context.home, current.roomId) ?? localBaseUrl
   });
   await new Promise<void>((resolve) => {
     server.listen(port, host, resolve);
   });
-  await writeCurrent(context.home, { ...current, baseUrl: publicBaseUrl });
-  context.stdout.write(`Serving ${current.roomId} at ${publicBaseUrl}\n`);
+  await writeCurrent(context.home, { ...current, baseUrl: localBaseUrl });
+  context.stdout.write(`Serving ${current.roomId} at ${localBaseUrl}\n`);
   await new Promise<void>((resolve) => {
     const stop = (): void => {
       process.removeListener("SIGINT", stop);

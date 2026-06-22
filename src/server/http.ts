@@ -40,6 +40,11 @@ export interface RoomHttpServerOptions {
   waitHoldMs?: number;
   waitHub?: WaitHub;
   allowInsecureRemote?: boolean;
+  // Resolves the public base URL advertised in onboarding cards and
+  // /wait.next_cmd commands. It is read per request so a tunnel client can
+  // publish a broker URL after the server has already started. Request parsing
+  // and same-origin checks always use the local `baseUrl`, never this value.
+  publicBaseUrl?: () => string;
 }
 
 interface RequestContext {
@@ -146,7 +151,7 @@ async function getCard(context: RequestContext): Promise<void> {
   sendPlain(
     context.res,
     200,
-    renderAttendCard(context.options.baseUrl, auth.participant.alias, auth.token, brief, state.attendance_policy)
+    renderAttendCard(advertisedBaseUrl(context), auth.participant.alias, auth.token, brief, state.attendance_policy)
   );
 }
 
@@ -311,7 +316,7 @@ async function getWait(context: RequestContext): Promise<void> {
       participant: auth.participant.alias,
       messages: [],
       sinceId,
-      baseUrl: context.options.baseUrl,
+      baseUrl: advertisedBaseUrl(context),
       heartbeat: true,
       keepWaiting: true
     })
@@ -437,7 +442,7 @@ async function waitSnapshot(
       participant,
       messages: [],
       sinceId,
-      baseUrl: context.options.baseUrl,
+      baseUrl: advertisedBaseUrl(context),
       heartbeat: false,
       keepWaiting: false
     });
@@ -672,11 +677,25 @@ function sendError(res: ServerResponse, error: unknown): void {
 
 function resolveOptions(options: RoomHttpServerOptions): Required<RoomHttpServerOptions> {
   assertSafeSlug(options.roomId, "room id");
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_OPTIONS.baseUrl);
   return {
     ...DEFAULT_OPTIONS,
     ...options,
-    baseUrl: normalizeBaseUrl(options.baseUrl ?? DEFAULT_OPTIONS.baseUrl)
+    baseUrl,
+    publicBaseUrl: options.publicBaseUrl ?? (() => baseUrl)
   };
+}
+
+// Public base URL for onboarding cards and /wait.next_cmd. Falls back to the
+// local base URL if the resolver returns an empty or invalid value.
+function advertisedBaseUrl(context: RequestContext): string {
+  const candidate = context.options.publicBaseUrl();
+  if (typeof candidate !== "string" || candidate.length === 0) return context.options.baseUrl;
+  try {
+    return normalizeBaseUrl(candidate);
+  } catch {
+    return context.options.baseUrl;
+  }
 }
 
 export function participantTokenHash(token: string): string {
