@@ -17,15 +17,23 @@ import {
   TunnelError
 } from "./protocol.js";
 import { forwardToHost } from "./forwarding.js";
+import { BROKER_LIMITS, BrokerGuards, type BrokerLimits } from "./limits.js";
+import { BrokerLogger, type BrokerLogSink, classifyPath, routeHash } from "./logging.js";
 
 export interface BrokerOptions {
   /** Time source in epoch milliseconds. Injectable for deterministic tests. */
   now?: () => number;
-  /** Milliseconds a route stays active after registration or a heartbeat. */
+  /** Idle timeout: ms a route stays active after registration or activity. */
   routeTtlMs?: number;
+  /** Hard cap on total route lifetime regardless of activity. */
+  maxRouteLifetimeMs?: number;
+  /** Override prototype resource limits (used by tests). */
+  limits?: Partial<BrokerLimits>;
+  /** Structured, redaction-safe log sink. Defaults to stderr JSON lines. */
+  logSink?: BrokerLogSink;
 }
 
-const DEFAULT_ROUTE_TTL_MS = 30_000;
+const DEFAULT_ROUTE_TTL_MS = BROKER_LIMITS.idleTimeoutMs;
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const LOCAL_TARGET_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
@@ -59,6 +67,10 @@ function assertLocalTarget(target: string): void {
 export class TunnelBroker {
   private readonly now: () => number;
   private readonly routeTtlMs: number;
+  private readonly maxRouteLifetimeMs: number;
+  private readonly limits: BrokerLimits;
+  private readonly guards: BrokerGuards;
+  private readonly logger: BrokerLogger;
   private readonly routes = new Map<string, RouteMetadata>();
   // Local room server URL per slug, used to forward participant requests. This
   // is routing configuration, not stored room data.
@@ -66,7 +78,11 @@ export class TunnelBroker {
 
   constructor(options: BrokerOptions = {}) {
     this.now = options.now ?? (() => Date.now());
-    this.routeTtlMs = options.routeTtlMs ?? DEFAULT_ROUTE_TTL_MS;
+    this.limits = { ...BROKER_LIMITS, ...options.limits };
+    this.routeTtlMs = options.routeTtlMs ?? this.limits.idleTimeoutMs;
+    this.maxRouteLifetimeMs = options.maxRouteLifetimeMs ?? this.limits.maxRouteLifetimeMs;
+    this.guards = new BrokerGuards(this.now, this.limits);
+    this.logger = new BrokerLogger(options.logSink);
   }
 
   /** Register a route for a slug. Rejects a duplicate active slug. */
@@ -155,14 +171,84 @@ export class TunnelBroker {
     return [...this.routes.values()].map((route) => ({ ...this.refresh(route) }));
   }
 
+  /**
+   * Forward a participant request under `/<slug>/` to the host room server,
+   * applying concurrency and rate guards and emitting a redaction-safe access
+   * log. The caller must have resolved the slug as an active route first.
+   */
+  async forward(slug: string, url: URL, req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const target = this.targets.get(slug);
+    if (target === undefined) {
+      throw new TunnelError("route_not_found", 502, "route has no forwarding target");
+    }
+    const forwardPath = url.pathname.slice(`/${slug}`.length) || "/";
+    const pathClass = classifyPath(forwardPath);
+    const isWait = pathClass === "wait";
+    const method = req.method ?? "GET";
+    const startedAt = this.now();
+
+    let release: () => void;
+    try {
+      release = this.guards.enter({
+        routeSlug: slug,
+        clientIp: req.socket.remoteAddress ?? "unknown",
+        isWait,
+        authenticated: typeof req.headers.authorization === "string"
+      });
+    } catch (error) {
+      this.logger.log({ event: "limit_rejected", route_hash: routeHash(slug), method, path_class: pathClass, error: errorCode(error) });
+      throw error;
+    }
+
+    this.touch(slug);
+    try {
+      const result = await forwardToHost({
+        target,
+        path: `${forwardPath}${url.search}`,
+        req,
+        res,
+        requestBodyBytes: this.limits.requestBodyBytes,
+        responseBodyBytes: this.limits.responseBodyBytes
+      });
+      this.logger.log({
+        event: "forward",
+        route_hash: routeHash(slug),
+        method,
+        path_class: pathClass,
+        status: result.status,
+        duration_ms: this.now() - startedAt,
+        bytes_in: result.bytesIn,
+        bytes_out: result.bytesOut,
+        ...(isWait ? { wait_held_ms: this.now() - startedAt } : {})
+      });
+    } catch (error) {
+      this.logger.log({ event: "forward_error", route_hash: routeHash(slug), method, path_class: pathClass, error: errorCode(error) });
+      throw error;
+    } finally {
+      release();
+    }
+  }
+
+  private touch(slug: string): void {
+    const route = this.routes.get(slug);
+    if (route && route.status === "active") {
+      const nowMs = this.now();
+      route.last_seen_at = isoFrom(nowMs);
+      route.expires_at = isoFrom(nowMs + this.routeTtlMs);
+    }
+  }
+
   private currentRoute(slug: string): RouteMetadata | undefined {
     const route = this.routes.get(slug);
     return route ? this.refresh(route) : undefined;
   }
 
   private refresh(route: RouteMetadata): RouteMetadata {
-    if (route.status === "active" && Date.parse(route.expires_at) <= this.now()) {
-      route.status = "expired";
+    if (route.status === "active") {
+      const nowMs = this.now();
+      const idleExpired = Date.parse(route.expires_at) <= nowMs;
+      const lifetimeExceeded = Date.parse(route.created_at) + this.maxRouteLifetimeMs <= nowMs;
+      if (idleExpired || lifetimeExceeded) route.status = "expired";
     }
     return route;
   }
@@ -231,12 +317,7 @@ async function handleParticipantRequest(
     sendJson(res, 200, { ok: true, route_slug: route.route_slug, status: route.status });
     return;
   }
-  const target = broker.target(slug);
-  if (target === undefined) {
-    throw new TunnelError("route_not_found", 502, "route has no forwarding target");
-  }
-  const forwardPath = url.pathname.slice(`/${slug}`.length) || "/";
-  await forwardToHost({ target, path: `${forwardPath}${url.search}`, req, res });
+  await broker.forward(slug, url, req, res);
 }
 
 async function handleHostRequest(
@@ -320,4 +401,8 @@ function mintId(prefix: string): string {
 
 function isoFrom(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+function errorCode(error: unknown): string {
+  return error instanceof TunnelError ? error.code : "internal_error";
 }
