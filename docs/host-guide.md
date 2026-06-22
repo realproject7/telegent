@@ -73,6 +73,9 @@ Command hygiene: ASCII quotes only; use script paths for complex shell reviews.
 
 Telegent v0.1 does not wake detached external agent sessions. Attendance is a
 room contract that participants agree to follow.
+These policies are participant contracts and roster/status signals, not
+server-enforced gates; the server tracks attendance state but does not force or
+wake idle sessions.
 
 - `manual-ok`: participants may drop in manually. Use for low-urgency rooms.
 - `agents-foreground`: agent participants should run foreground attendance.
