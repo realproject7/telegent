@@ -135,38 +135,111 @@ export class TunnelBroker {
   }
 }
 
+// Reserved path prefix for host control requests. The slug pattern forbids the
+// underscore, so this prefix can never collide with a participant route slug.
+const HOST_PREFIX = "_host";
+const MAX_HOST_BODY_BYTES = 16_000;
+
 /**
- * Create a local HTTP listener for simulated remote participants. The first
- * path segment is the route slug. Active slugs return route status; unknown,
- * expired, or closed slugs return a stable tunnel error. The listener never
- * forwards to a host room server in this ticket.
+ * Create a local HTTP listener for the broker. Host control requests use the
+ * reserved `/_host/<action>` prefix (register, heartbeat, close); every other
+ * path is treated as a participant request whose first segment is the route
+ * slug. Active slugs return route status; unknown, expired, or closed slugs
+ * return a stable tunnel error. The listener never forwards to a host room
+ * server in this ticket (forwarding lands with #36).
  */
 export function createBrokerHttpServer(broker: TunnelBroker): Server {
   return createServer((req, res) => {
-    handleParticipantRequest(broker, req, res);
+    void routeBrokerRequest(broker, req, res);
   });
 }
 
-function handleParticipantRequest(
+async function routeBrokerRequest(
   broker: TunnelBroker,
   req: IncomingMessage,
   res: ServerResponse
-): void {
+): Promise<void> {
   try {
     const url = new URL(req.url ?? "/", "http://broker.local");
-    const slug = url.pathname.split("/").filter(Boolean)[0];
-    if (slug === undefined) {
-      throw new TunnelError("unsupported_route", 404, "request path does not name a route");
-    }
-    const route = broker.resolve(slug);
-    sendJson(res, 200, { ok: true, route_slug: route.route_slug, status: route.status });
-  } catch (error) {
-    if (error instanceof TunnelError) {
-      sendJson(res, error.status, error.body());
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments[0] === HOST_PREFIX) {
+      await handleHostRequest(broker, segments[1], req, res);
       return;
     }
-    sendJson(res, 500, { ok: false, error: "internal_error", message: "internal tunnel error" });
+    handleParticipantRequest(broker, segments[0], res);
+  } catch (error) {
+    sendTunnelError(res, error);
   }
+}
+
+function handleParticipantRequest(broker: TunnelBroker, slug: string | undefined, res: ServerResponse): void {
+  if (slug === undefined) {
+    throw new TunnelError("unsupported_route", 404, "request path does not name a route");
+  }
+  const route = broker.resolve(slug);
+  sendJson(res, 200, { ok: true, route_slug: route.route_slug, status: route.status });
+}
+
+async function handleHostRequest(
+  broker: TunnelBroker,
+  action: string | undefined,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method !== "POST") {
+    throw new TunnelError("unsupported_route", 405, "host control requires POST");
+  }
+  const body = await readJsonBody(req);
+  if (action === "register") {
+    const route = broker.register({ route_slug: body.route_slug as string });
+    sendJson(res, 200, { ok: true, route });
+    return;
+  }
+  if (action === "heartbeat") {
+    const route = broker.heartbeat({
+      route_id: body.route_id as string,
+      host_connection_id: body.host_connection_id as string
+    });
+    sendJson(res, 200, { ok: true, route });
+    return;
+  }
+  if (action === "close") {
+    const result = broker.closeRoute({
+      route_id: body.route_id as string,
+      host_connection_id: body.host_connection_id as string
+    });
+    sendJson(res, 200, result);
+    return;
+  }
+  throw new TunnelError("unsupported_route", 404, "unknown host control action");
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer);
+    total += buffer.length;
+    if (total > MAX_HOST_BODY_BYTES) {
+      throw new TunnelError("invalid_registration", 413, "host control body is too large");
+    }
+    chunks.push(buffer);
+  }
+  if (total === 0) return {};
+  try {
+    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function sendTunnelError(res: ServerResponse, error: unknown): void {
+  if (error instanceof TunnelError) {
+    sendJson(res, error.status, error.body());
+    return;
+  }
+  sendJson(res, 500, { ok: false, error: "internal_error", message: "internal tunnel error" });
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

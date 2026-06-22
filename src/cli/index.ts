@@ -8,6 +8,7 @@ import { runHandoffCommand } from "./commands/handoff/index.js";
 import { runInstructionsCommand } from "./commands/instructions/index.js";
 import { runMessagesCommand, runReadCommand, runReplyCommand, runSendCommand } from "./commands/message/index.js";
 import { runRoomCommand } from "./commands/room/index.js";
+import { runTunnelCommand } from "./commands/tunnel/index.js";
 import { runWatchCommand } from "./commands/watch/index.js";
 
 async function main(argv: string[]): Promise<number> {
@@ -25,6 +26,9 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "room") {
     return runRoomCommand(rest, createCliContext());
+  }
+  if (command === "tunnel") {
+    return runTunnelCommand(rest, createCliContext());
   }
   if (command === "send") return runSendCommand(rest, createCliContext());
   if (command === "messages") return runMessagesCommand(rest, createCliContext());

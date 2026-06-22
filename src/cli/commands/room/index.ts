@@ -15,6 +15,7 @@ import type { Participant, ParticipantKind, RoomBrief } from "../../../protocol/
 import { normalizeBaseUrl, parseAttendancePolicy, roomUrl, type AttendancePolicy } from "../../../protocol/index.js";
 import { createToken } from "../../../auth/index.js";
 import { createRoomHttpServer, participantTokenHash, renderAttendCard } from "../../../server/index.js";
+import { readPublicBaseUrl } from "../../../tunnel/index.js";
 import { parseArgs, flagBoolean, flagString } from "../../args.js";
 import type { CliContext } from "../../context.js";
 import { readCurrent, readToken, writeCurrent, writeToken } from "../../state.js";
@@ -208,8 +209,9 @@ async function roomInvite(argv: string[], context: CliContext): Promise<number> 
   const token = createToken();
   await upsertParticipant(context.home, current.roomId, participant(alias, kind, false, token));
   await writeToken(context.home, current.roomId, alias, token);
-  const cardCommand = `curl -s "${roomUrl(current.baseUrl, `/card?participant=${alias}&token=${token}`)}"`;
-  const browserUrl = `${normalizeBaseUrl(current.baseUrl)}/#token=${token}`;
+  const advertised = advertisedBaseUrl(context.home, current.roomId, current.baseUrl);
+  const cardCommand = `curl -s "${roomUrl(advertised, `/card?participant=${alias}&token=${token}`)}"`;
+  const browserUrl = `${normalizeBaseUrl(advertised)}/#token=${token}`;
   return emit(
     context,
     flagBoolean(args, "json"),
@@ -228,8 +230,16 @@ async function roomInviteCard(argv: string[], context: CliContext): Promise<numb
     readBrief(context.home, current.roomId),
     readRoomState(roomPaths(context.home, current.roomId))
   ]);
-  const card = renderAttendCard(current.baseUrl, alias, token, brief, state.attendance_policy);
+  const advertised = advertisedBaseUrl(context.home, current.roomId, current.baseUrl);
+  const card = renderAttendCard(advertised, alias, token, brief, state.attendance_policy);
   return emit(context, flagBoolean(args, "json"), { ok: true, room: current.roomId, alias, card }, `${card}\n`);
+}
+
+// Prefer the published broker URL (from tunnel.json) so invite output stays on
+// the public URL even after `room serve` rewrites current.baseUrl to a local
+// address. Falls back to the stored room URL when no tunnel is active.
+function advertisedBaseUrl(home: string, roomId: string, fallback: string): string {
+  return readPublicBaseUrl(home, roomId) ?? fallback;
 }
 
 async function roomJoin(argv: string[], context: CliContext): Promise<number> {
@@ -297,18 +307,21 @@ async function roomServe(argv: string[], context: CliContext): Promise<number> {
   const publicUrl = new URL(flagString(args, "url") ?? current.baseUrl);
   if (flagString(args, "url") === undefined) publicUrl.port = String(port);
   validateServeExposure({ host, publicUrl, allowRemote });
-  const publicBaseUrl = normalizeBaseUrl(publicUrl.toString());
+  const localBaseUrl = normalizeBaseUrl(publicUrl.toString());
   const server = createRoomHttpServer({
     root: context.home,
     roomId: current.roomId,
-    baseUrl: publicBaseUrl,
-    allowInsecureRemote: allowRemote
+    baseUrl: localBaseUrl,
+    allowInsecureRemote: allowRemote,
+    // After `tunnel start` publishes a broker URL, advertise it in cards and
+    // wait commands; otherwise keep advertising the local serve URL.
+    publicBaseUrl: () => readPublicBaseUrl(context.home, current.roomId) ?? localBaseUrl
   });
   await new Promise<void>((resolve) => {
     server.listen(port, host, resolve);
   });
-  await writeCurrent(context.home, { ...current, baseUrl: publicBaseUrl });
-  context.stdout.write(`Serving ${current.roomId} at ${publicBaseUrl}\n`);
+  await writeCurrent(context.home, { ...current, baseUrl: localBaseUrl });
+  context.stdout.write(`Serving ${current.roomId} at ${localBaseUrl}\n`);
   await new Promise<void>((resolve) => {
     const stop = (): void => {
       process.removeListener("SIGINT", stop);
