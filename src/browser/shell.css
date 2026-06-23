@@ -82,24 +82,11 @@ a {
   backdrop-filter: blur(16px);
 }
 
-.brand {
+/* Reserved, intentionally empty brand/logo slot for #82. No mark/wordmark. */
+.brand-slot {
   min-width: 0;
-}
-
-.eyebrow {
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.brand h1 {
-  margin: 4px 0 0;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+  flex: 1 1 auto;
+  min-height: 28px;
 }
 
 .topbar-meta {

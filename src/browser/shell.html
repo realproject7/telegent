@@ -7,12 +7,10 @@
     <link rel="stylesheet" href="shell.css">
   </head>
   <body>
-    <main class="platform-shell" data-state="loading">
+    <main class="platform-shell" data-state="loading" aria-label="Platform owner shell">
       <header class="platform-topbar">
-        <div class="brand">
-          <div class="eyebrow">Agent Gather</div>
-          <h1>Platform</h1>
-        </div>
+        <!-- Brand/logo slot is intentionally reserved and left blank for #82. -->
+        <div class="brand-slot" aria-hidden="true"></div>
         <div class="topbar-meta">
           <span id="owner-label" class="owner-chip">owner</span>
           <button id="rooms-toggle" class="icon-button" type="button" aria-label="Toggle room list">Rooms</button>
