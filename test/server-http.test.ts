@@ -67,6 +67,18 @@ async function startFixture(): Promise<{
   };
 }
 
+test("GET /watch returns a 404 that points clients to /wait", async () => {
+  const fixture = await startFixture();
+  try {
+    const response = await fetch(`${fixture.baseUrl}/watch`);
+    const body = (await response.json()) as { message: string };
+    assert.equal(response.status, 404);
+    assert.match(body.message, /\/wait/);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test("HTTP core exposes every non-wait endpoint", async () => {
   const fixture = await startFixture();
   try {

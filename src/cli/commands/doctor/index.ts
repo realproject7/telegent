@@ -28,6 +28,7 @@ export async function runDoctorCommand(argv: string[], context: CliContext): Pro
     checks.push(await lockCheck(paths.lock));
     checks.push(await roomStateCheck(paths));
     checks.push(await serverCheck(current.baseUrl, current.token));
+    checks.push(await waitCheck(current.baseUrl, current.alias, current.token));
   }
 
   const ok = checks.every((check) => check.ok);
@@ -87,9 +88,37 @@ async function serverCheck(baseUrl: string, token: string): Promise<Check> {
     if (!response.ok) {
       return { name: "room-server", ok: false, message: `HTTP ${response.status}` };
     }
-    return { name: "room-server", ok: true, message: "reachable" };
+    return { name: "room-server", ok: true, message: "reachable (/status)" };
   } catch {
-    return { name: "room-server", ok: false, message: "not reachable at current baseUrl" };
+    return { name: "room-server", ok: false, message: "not reachable at current baseUrl; check agentgather room serve and tunnel state" };
+  }
+}
+
+// Bounded readiness probe for the long-poll endpoint. A held /wait (aborted
+// after a short window) proves the endpoint is reachable and serving; a 404
+// means the route/baseUrl does not point at a running room server.
+async function waitCheck(baseUrl: string, alias: string, token: string): Promise<Check> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1_500);
+  try {
+    const response = await fetch(new URL(`/wait?participant=${alias}&since_id=0`, baseUrl), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (response.status === 404) {
+      return { name: "wait-endpoint", ok: false, message: "GET /wait returned 404; route/baseUrl mismatch, not a missing /watch" };
+    }
+    if (!response.ok) {
+      return { name: "wait-endpoint", ok: false, message: `HTTP ${response.status}` };
+    }
+    return { name: "wait-endpoint", ok: true, message: "responded (/wait)" };
+  } catch (error) {
+    clearTimeout(timer);
+    if (error instanceof Error && error.name === "AbortError") {
+      return { name: "wait-endpoint", ok: true, message: "long-poll holding (/wait ready)" };
+    }
+    return { name: "wait-endpoint", ok: false, message: "not reachable at current baseUrl" };
   }
 }
 

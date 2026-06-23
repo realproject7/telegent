@@ -78,12 +78,35 @@ export async function readAndStoreCursor(context: CliContext, sinceId: number): 
 export async function waitOnce(context: CliContext, sinceId: number): Promise<WaitResponse & { cli_next_cmd: string | null }> {
   const current = await readCurrent(context.home);
   const path = `/wait?participant=${current.alias}&since_id=${sinceId}`;
-  const response = await requestJson<WaitResponse>(current, path, "GET");
-  if (response === null) throw new Error("room server is not reachable for watch");
-  await writeCursor(context.home, current.roomId, current.alias, response.next_since_id);
+  // attend/watch long-poll the host room server over HTTP GET /wait. Surface a
+  // precise reason (not the old "/watch" wording) and never print the token.
+  let response: Response;
+  try {
+    response = await fetch(new URL(path, current.baseUrl), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${current.token}`, "Content-Type": "application/json" }
+    });
+  } catch {
+    throw new Error(
+      `could not reach the room server at ${current.baseUrl} for HTTP /wait. ` +
+        "Check that `agentgather room serve` is running, the current baseUrl (`agentgather room current`), and tunnel state."
+    );
+  }
+  if (response.status === 404) {
+    throw new Error(
+      `HTTP /wait returned 404 at ${current.baseUrl}. The route or baseUrl may not point at a running room server ` +
+        "(route/server mismatch, not a missing /watch endpoint)."
+    );
+  }
+  const payload = await readResponseJson<WaitResponse & { message?: string }>(response);
+  if (!response.ok) {
+    throw new Error(payload.message ?? `HTTP /wait failed with HTTP ${response.status}`);
+  }
+  const waitResponse = payload as WaitResponse;
+  await writeCursor(context.home, current.roomId, current.alias, waitResponse.next_since_id);
   return {
-    ...response,
-    cli_next_cmd: response.keep_waiting ? `agentgather watch --since ${response.next_since_id} --json` : null
+    ...waitResponse,
+    cli_next_cmd: waitResponse.keep_waiting ? `agentgather watch --since ${waitResponse.next_since_id} --json` : null
   };
 }
 

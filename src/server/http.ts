@@ -105,6 +105,9 @@ async function handleRequest(context: RequestContext): Promise<void> {
   if (context.req.method === "POST" && pathname === "/leave") return postLeave(context);
   if (context.req.method === "POST" && pathname === "/close") return postClose(context);
   if (context.req.method === "GET" && pathname === "/status") return getStatus(context);
+  if (pathname === "/watch") {
+    throw new HttpError(404, "not_found", "this server long-polls on GET /wait, not /watch");
+  }
   throw new HttpError(404, "not_found", "endpoint not found");
 }
 
