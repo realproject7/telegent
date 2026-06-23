@@ -27,12 +27,13 @@ work is done.
 
 ## Install
 
-Telegent is distributed on npm as `tgent` because the unscoped `telegent`
-package name is already occupied. The installed CLI supports both command
-names:
+Telegent is distributed on npm as `@project7/tgent`. The unscoped `telegent`
+package name is already occupied, and npm also blocks the unscoped `tgent`
+package under its package-name similarity policy. The installed CLI still
+supports both command names:
 
 ```bash
-npm install -g tgent
+npm install -g @project7/tgent
 telegent --help
 tgent --help
 ```
