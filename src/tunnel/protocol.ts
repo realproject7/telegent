@@ -33,6 +33,11 @@ export type TunnelErrorCode =
   | "response_too_large"
   | "host_unavailable"
   | "unknown_request"
+  // Cumulative free-quota for public routing has been exhausted for the current
+  // window. Distinct from the instantaneous abuse limits (route_request_limit,
+  // wait_limit, rate_limited): those throttle bursts, this reports usage
+  // accounting and is consumed by the metering/billing tickets (#85/#86).
+  | "quota_exceeded"
   | "internal_error";
 
 /**
