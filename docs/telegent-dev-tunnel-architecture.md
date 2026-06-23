@@ -25,7 +25,7 @@ Use a split architecture:
 
 ```text
 telegent.dev control plane      = Vercel-hosted website/API and domain UX
-*.rooms.telegent.dev data plane = persistent tunnel broker, not Vercel Functions
+rooms.telegent.dev data plane   = persistent tunnel broker, not Vercel Functions
 host CLI tunnel client          = outbound connection from host to broker
 ```
 
@@ -34,20 +34,21 @@ marketing/control surface and domain management, but the tunnel needs long-lived
 host connections, request multiplexing, and long-poll forwarding. Those are
 better served by a small persistent broker process.
 
-Recommended implementation order:
+Implementation order:
 
-1. Documented architecture.
-2. Local broker prototype with no public domain.
-3. Operator deployment guide and public gate checklist.
+1. Documented architecture. Completed.
+2. Local broker prototype with no public domain. Completed.
+3. Operator deployment guide and public gate checklist. Completed.
 4. Staging broker on persistent infrastructure after operator approval.
-5. `telegent.dev` DNS/Vercel control plane after operator approval.
+   Completed for `rooms.telegent.dev`.
+5. Optional `telegent.dev` website/control plane after operator approval.
 6. Metering and x402 only after product demand is proven.
 
 ## Data Flow
 
 ```text
 remote participant
-  -> https://room-slug.rooms.telegent.dev/messages
+  -> https://rooms.telegent.dev/room-slug/messages
   -> tunnel broker
   -> existing outbound host tunnel connection
   -> host Telegent room server on http://127.0.0.1:8787
@@ -74,33 +75,34 @@ telegent room serve --port 8787
 The public URL is supplied by the tunnel client once it is connected:
 
 ```bash
-telegent tunnel start --room current --subdomain room-slug
+telegent tunnel run --room current --broker https://rooms.telegent.dev --subdomain room-slug
 ```
 
 The tunnel client updates the local current room URL to
-`https://room-slug.rooms.telegent.dev` only after the broker confirms the route.
+`https://rooms.telegent.dev/room-slug` only after the broker confirms the route.
 Invite cards generated before that point may still contain localhost URLs.
 
 ### Host Tunnel Client
 
-The host tunnel client opens an outbound authenticated connection to the broker.
+The host tunnel client opens an outbound host-attended connection to the broker.
 The host does not need an inbound public port.
 
 Responsibilities:
 
-- authenticate the host to the broker with a tunnel session token
+- register the host route and receive broker-minted route identifiers
 - register desired room slug and local target URL
-- maintain heartbeat/reconnect
+- maintain heartbeat and fail cleanly when the route or broker is unavailable
 - multiplex HTTP requests from broker to local `room serve`
 - close the route when the room closes or the process exits
 - redact credentials from local diagnostic output
 
-The host tunnel token is distinct from participant tokens. It authorizes routing
-for one host room; it does not authorize posting messages.
+The host connection identifier is distinct from participant tokens. It
+authorizes routing control for one host room; it does not authorize posting
+messages. Production host authentication is a later hardening gate.
 
 ### Tunnel Broker
 
-The broker is the data plane for `*.rooms.telegent.dev`.
+The broker is the data plane for `rooms.telegent.dev`.
 
 Responsibilities:
 
@@ -206,7 +208,7 @@ Never log:
 - message text
 - Room Brief text
 - raw participant tokens
-- raw host tunnel tokens
+- raw host route identifiers
 
 Allowed structured fields:
 
@@ -255,15 +257,22 @@ Can be implemented before operator credentials:
 - request forwarding tests for every room endpoint
 - docs and runbooks
 
-Blocked by operator gate:
+Cleared for staging:
+
+- `rooms.telegent.dev` DNS A/AAAA records
+- public TLS through Caddy
+- persistent broker infrastructure on `telegent-broker-01`
+- first-class `telegent broker serve` systemd deployment
+- staging smoke with curl agent and browser human participants
+
+Still blocked by operator gate:
 
 - Vercel project creation or linking
-- `telegent.dev` DNS records, wildcard records, or nameserver changes
-- public TLS certificates for `*.rooms.telegent.dev`
-- deploying persistent broker infrastructure
+- production/public availability policy
+- authenticated host registration hardening
 - paid tunnel provider setup
 - x402 payment configuration
-- public pricing/free-tier policy
+- public pricing/free-quota policy
 - npm publish that advertises managed tunnel routing
 
 ## Implementation Ticket Breakdown
@@ -275,8 +284,8 @@ Blocked by operator gate:
    - Acceptance: no public network or credentials required.
 
 2. **Host tunnel client**
-   - Add `telegent tunnel start --room current --broker <url> --subdomain <slug>`.
-   - Maintain outbound connection and update current room URL after registration.
+   - Add `telegent tunnel run --room current --broker <url> --subdomain <slug>`.
+   - Maintain outbound relay and update current room URL after registration.
    - Acceptance: local broker can reach existing `room serve`.
 
 3. **Broker forwarding core**
@@ -314,7 +323,7 @@ local rooms = free and independent
 managed tunnel routing = optional paid convenience
 ```
 
-Useful free-tier counters:
+Useful free-quota counters:
 
 - route minutes
 - forwarded requests
