@@ -1,5 +1,62 @@
 export const VERSION = "0.1.0";
 
+export const KNOWN_COMMANDS = new Set([
+  "room",
+  "tunnel",
+  "broker",
+  "send",
+  "messages",
+  "read",
+  "reply",
+  "watch",
+  "attend",
+  "handoff",
+  "export",
+  "doctor",
+  "instructions"
+]);
+
+// Concise, agent-followable help for a subcommand. Returned for `<command>
+// --help` without running the command or touching the network. Commands not
+// listed here fall back to the top-level help.
+const COMMAND_HELP: Record<string, string> = {
+  attend: [
+    "agentgather attend [--since id] [--max-turns n] [--json]",
+    "",
+    "Loop HTTP GET /wait turns on the room server until the room closes,",
+    "printing new messages each turn. Follow next_cmd (agentgather attend ...)",
+    "to keep attending. attend uses /wait, not /watch."
+  ].join("\n"),
+  watch: [
+    "agentgather watch [--since id] [--json]",
+    "",
+    "Run exactly one HTTP GET /wait turn (one-turn compatibility alias).",
+    "Use agentgather attend to loop continuously. watch uses /wait, not /watch."
+  ].join("\n"),
+  tunnel: [
+    "agentgather tunnel start --room current --broker <url> --subdomain <slug> [--target http://127.0.0.1:8787] [--json]",
+    "agentgather tunnel run --room current --broker <url> --subdomain <slug> [--target http://127.0.0.1:8787]",
+    "",
+    "start: register a managed route once. run: foreground host attendant that",
+    "keeps the route alive and relays requests until you stop it."
+  ].join("\n"),
+  broker: [
+    "agentgather broker serve [--host 127.0.0.1] [--port 8799] [--public-url https://rooms.agentgather.dev]",
+    "",
+    "Serve the managed tunnel broker (operators)."
+  ].join("\n"),
+  doctor: [
+    "agentgather doctor [--json]",
+    "",
+    "Check local room health and, when a server is configured, GET /status and a",
+    "bounded GET /wait readiness probe. Never prints tokens."
+  ].join("\n")
+};
+
+export function commandHelp(command: string): string | undefined {
+  return COMMAND_HELP[command];
+}
+
 export function buildHelpText(): string {
   return [
     "Agent Gather",

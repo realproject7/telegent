@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { buildHelpText, VERSION } from "./help.js";
+import { buildHelpText, commandHelp, KNOWN_COMMANDS, VERSION } from "./help.js";
 import { createCliContext } from "./context.js";
 import { runAttendCommand } from "./commands/attend/index.js";
 import { runBrokerCommand } from "./commands/broker/index.js";
@@ -22,6 +22,13 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "--version" || command === "-v") {
     process.stdout.write(`${VERSION}\n`);
+    return 0;
+  }
+
+  // Subcommand help must print and exit 0 without running the command or making
+  // any network call.
+  if (KNOWN_COMMANDS.has(command) && (rest.includes("--help") || rest.includes("-h"))) {
+    process.stdout.write(`${commandHelp(command) ?? buildHelpText()}\n`);
     return 0;
   }
 

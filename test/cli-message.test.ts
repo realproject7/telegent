@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
-import { AddressInfo } from "node:net";
+import { createServer } from "node:http";
+import { AddressInfo, createServer as createNetServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
@@ -45,6 +46,51 @@ async function makeContext(): Promise<{ context: CliContext; stdout: Capture; st
     stderr
   };
 }
+
+async function getFreePort(): Promise<number> {
+  const server = createNetServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}
+
+test("watch reports a route/server mismatch on /wait 404 without leaking the token", async () => {
+  const { context } = await makeContext();
+  const notFound = createServer((_req, res) => {
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end('{"error":"not_found"}');
+  });
+  await new Promise<void>((resolve) => notFound.listen(0, "127.0.0.1", resolve));
+  const baseUrl = `http://127.0.0.1:${(notFound.address() as AddressInfo).port}`;
+  await runRoomCommand(["start", "mismatch-room", "--alias", "agent", "--url", baseUrl, "--json"], context);
+  try {
+    await assert.rejects(runWatchCommand(["--since", "0", "--json"], context), (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /404/);
+      assert.match(message, /\/wait/);
+      assert.match(message, /mismatch/i);
+      assert.doesNotMatch(message, /Bearer|tgl_/);
+      return true;
+    });
+  } finally {
+    await new Promise<void>((resolve) => notFound.close(() => resolve()));
+  }
+});
+
+test("watch reports an unreachable server with recovery hints and no token", async () => {
+  const { context } = await makeContext();
+  const port = await getFreePort();
+  await runRoomCommand(["start", "down-room", "--alias", "agent", "--url", `http://127.0.0.1:${port}`, "--json"], context);
+  await assert.rejects(runWatchCommand(["--since", "0", "--json"], context), (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    assert.match(message, /could not reach/i);
+    assert.match(message, /room serve/);
+    assert.match(message, /baseUrl/);
+    assert.doesNotMatch(message, /Bearer|tgl_/);
+    return true;
+  });
+});
 
 async function startRoomFixture(): Promise<{
   context: CliContext;
@@ -199,13 +245,26 @@ test("read stores cursors, reply records reply metadata, and handoff embeds boun
   }
 });
 
-test("watch performs one attended wait turn and returns a CLI next command on heartbeat", async () => {
+test("watch performs one wait turn and points continuation at attend, not watch", async () => {
   const fixture = await startRoomFixture();
   try {
     await runWatchCommand(["--since", "0", "--json"], fixture.context);
     const watched = fixture.stdout.json<{ keep_waiting: boolean; cli_next_cmd: string | null }>();
     assert.equal(watched.keep_waiting, true);
-    assert.equal(watched.cli_next_cmd, "agentgather watch --since 0 --json");
+    // One-turn watch directs the agent to continuous attend, never back to watch.
+    assert.equal(watched.cli_next_cmd, "agentgather attend --since 0 --json");
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("non-JSON watch next line points to attend, not watch", async () => {
+  const fixture = await startRoomFixture();
+  try {
+    await runWatchCommand(["--since", "0"], fixture.context);
+    const output = fixture.stdout.text();
+    assert.match(output, /next: agentgather attend --since 0/);
+    assert.doesNotMatch(output, /next: agentgather watch/);
   } finally {
     await fixture.close();
   }
