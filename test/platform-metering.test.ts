@@ -24,8 +24,12 @@ function memoryStore(): MeteringStore {
     async read(subject) {
       return map.get(subject) ?? null;
     },
-    async write(subject, record) {
-      map.set(subject, record);
+    // The synchronous mutator cannot interleave with another update in
+    // single-threaded JS, so the in-memory update is inherently atomic.
+    async update(subject, mutate) {
+      const next = mutate(map.get(subject) ?? null);
+      map.set(subject, next);
+      return next;
     }
   };
 }
@@ -103,6 +107,15 @@ test("file-backed counters survive a simulated process restart", async () => {
   const usage = await second.usage("owner-1");
   assert.equal(usage.window.counters.participant_joins, 3);
   assert.equal(usage.window.counters.route_minutes, 12);
+});
+
+test("concurrent records do not lose increments under the file store lock", async () => {
+  const root = await makeRoot();
+  const ledger = new MeteringLedger({ store: fileMeteringStore(root), now: () => T0 });
+  // Without an atomic read/increment/write these would race and undercount; the
+  // writer lock around the whole update serializes them.
+  await Promise.all(Array.from({ length: 20 }, () => ledger.record("owner-1", "relay_requests", 1)));
+  assert.equal((await ledger.usage("owner-1")).window.counters.relay_requests, 20);
 });
 
 test("metering records carry no message bodies, tokens, or invite URLs", async () => {

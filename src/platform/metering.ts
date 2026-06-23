@@ -62,29 +62,40 @@ export const DEFAULT_FREE_QUOTA: FreeQuota = {
 
 const SUBJECT_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 
-/** Pluggable persistence for metering records, so tests can inject a fake. */
+/**
+ * Pluggable persistence for metering records, so tests can inject a fake. The
+ * read/modify/write of an increment must be atomic, so the mutating path is a
+ * single `update(subject, mutate)` the store performs as one transaction; the
+ * mutator is synchronous so it cannot interleave with another update.
+ */
 export interface MeteringStore {
   read(subject: string): Promise<MeteringRecord | null>;
-  write(subject: string, record: MeteringRecord): Promise<void>;
+  update(subject: string, mutate: (current: MeteringRecord | null) => MeteringRecord): Promise<MeteringRecord>;
 }
 
 /** File-backed metering store under <root>/platform/metering, reusing #80 patterns. */
 export function fileMeteringStore(root: string): MeteringStore {
   const dir = path.join(root, "platform", "metering");
   const fileFor = (subject: string): string => path.join(dir, `${assertSubject(subject)}.json`);
+  const readRecord = async (subject: string): Promise<MeteringRecord | null> => {
+    try {
+      return JSON.parse(await readFile(fileFor(subject), "utf8")) as MeteringRecord;
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  };
   return {
-    async read(subject) {
-      try {
-        return JSON.parse(await readFile(fileFor(subject), "utf8")) as MeteringRecord;
-      } catch (error) {
-        if (isNotFound(error)) return null;
-        throw error;
-      }
-    },
-    async write(subject, record) {
+    read: readRecord,
+    async update(subject, mutate) {
+      assertSubject(subject);
       await ensureSecureDir(dir);
-      await withWriterLock(path.join(dir, ".lock"), async () => {
-        await writeSecureFile(fileFor(subject), `${JSON.stringify(record, null, 2)}\n`);
+      // Hold the writer lock across the whole read -> mutate -> write so
+      // concurrent increments for the same subject cannot lose updates.
+      return withWriterLock(path.join(dir, ".lock"), async () => {
+        const next = mutate(await readRecord(subject));
+        await writeSecureFile(fileFor(subject), `${JSON.stringify(next, null, 2)}\n`);
+        return next;
       });
     }
   };
@@ -138,12 +149,12 @@ export class MeteringLedger {
     if (!Number.isFinite(amount) || amount < 0) {
       throw new Error("metering amount must be a non-negative number");
     }
-    const existing = await this.store.read(subject);
-    const window = this.windowFor(existing);
-    window.counters[dimension] += amount;
-    const record = this.finalize(subject, window);
-    await this.store.write(subject, record);
-    return record;
+    // The whole increment runs inside the store's atomic update transaction.
+    return this.store.update(subject, (current) => {
+      const window = this.windowFor(current);
+      window.counters[dimension] += amount;
+      return this.finalize(subject, window);
+    });
   }
 
   /** Current usage snapshot for a subject, rolling the window if it has reset. */

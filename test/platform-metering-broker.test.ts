@@ -39,8 +39,10 @@ function memoryStore(): MeteringStore {
     async read(subject) {
       return map.get(subject) ?? null;
     },
-    async write(subject, record) {
-      map.set(subject, record);
+    async update(subject, mutate) {
+      const next = mutate(map.get(subject) ?? null);
+      map.set(subject, next);
+      return next;
     }
   };
 }
