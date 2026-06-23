@@ -26,7 +26,7 @@ async function brokerServe(argv: string[], context: CliContext): Promise<number>
     server.listen(port, host, resolve);
   });
 
-  context.stdout.write(`Telegent broker serving on ${host}:${port}\n`);
+  context.stdout.write(`Agent Gather broker serving on ${host}:${port}\n`);
   if (publicUrl !== undefined) context.stdout.write(`Public URL: ${publicUrl}\n`);
   context.stdout.write("Stores only ephemeral route metadata; no room history, message bodies, or participant tokens.\n");
 
@@ -40,7 +40,7 @@ async function brokerServe(argv: string[], context: CliContext): Promise<number>
     process.once("SIGTERM", stop);
   });
 
-  context.stdout.write("Telegent broker stopped.\n");
+  context.stdout.write("Agent Gather broker stopped.\n");
   return 0;
 }
 

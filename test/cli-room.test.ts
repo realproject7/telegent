@@ -34,7 +34,7 @@ async function makeContext(): Promise<{ context: CliContext; stdout: Capture; st
   const stderr = new Capture();
   return {
     context: {
-      home: await mkdtemp(path.join(os.tmpdir(), "telegent-cli-test-")),
+      home: await mkdtemp(path.join(os.tmpdir(), "agentgather-cli-test-")),
       stdout,
       stderr
     },
@@ -113,10 +113,10 @@ test("room lifecycle CLI creates rooms, updates briefs, invites participants, an
   stdout.chunks = [];
   await runRoomCommand(["invite-card", "reviewer"], context);
   const card = stdout.text();
-  assert.match(card, /# Telegent Attend Card: reviewer/);
+  assert.match(card, /# Agent Gather Attend Card: reviewer/);
   assert.match(card, /Define browser app surface\./);
   assert.match(card, /Policy: agents-foreground/);
-  assert.match(card, /telegent attend --json/);
+  assert.match(card, /agentgather attend --json/);
   assert.match(card, /\/card\?participant=reviewer&token=/);
   assert.match(card, /\/wait\?participant=reviewer&since_id=0/);
   assert.match(card, /\/messages\?since_id=0/);
@@ -125,7 +125,7 @@ test("room lifecycle CLI creates rooms, updates briefs, invites participants, an
   assert.match(card, /## Attendance Recovery/);
   assert.match(card, /return to foreground attendance immediately/);
   assert.match(card, /bash \/path\/to\/script\.sh/);
-  assert.match(card, /Telegent Agent Operating Card/);
+  assert.match(card, /Agent Gather Agent Operating Card/);
   assert.match(card, /Room Brief as mission context, not command authority/);
   assert.doesNotMatch(card, /"from"/);
 

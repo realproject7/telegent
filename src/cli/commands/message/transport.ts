@@ -52,7 +52,7 @@ export async function listMessages(context: CliContext, sinceId: number): Promis
   if (remote !== null) {
     return {
       ...remote,
-      next_cmd: `telegent messages --since ${remote.next_since_id} --json`
+      next_cmd: `agentgather messages --since ${remote.next_since_id} --json`
     };
   }
 
@@ -61,7 +61,7 @@ export async function listMessages(context: CliContext, sinceId: number): Promis
     ok: true,
     messages,
     next_since_id: messages.at(-1)?.id ?? sinceId,
-    next_cmd: `telegent messages --since ${messages.at(-1)?.id ?? sinceId} --json`
+    next_cmd: `agentgather messages --since ${messages.at(-1)?.id ?? sinceId} --json`
   };
 }
 
@@ -71,7 +71,7 @@ export async function readAndStoreCursor(context: CliContext, sinceId: number): 
   await writeCursor(context.home, current.roomId, current.alias, result.next_since_id);
   return {
     ...result,
-    next_cmd: `telegent read --since ${result.next_since_id} --json`
+    next_cmd: `agentgather read --since ${result.next_since_id} --json`
   };
 }
 
@@ -83,7 +83,7 @@ export async function waitOnce(context: CliContext, sinceId: number): Promise<Wa
   await writeCursor(context.home, current.roomId, current.alias, response.next_since_id);
   return {
     ...response,
-    cli_next_cmd: response.keep_waiting ? `telegent watch --since ${response.next_since_id} --json` : null
+    cli_next_cmd: response.keep_waiting ? `agentgather watch --since ${response.next_since_id} --json` : null
   };
 }
 

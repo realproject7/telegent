@@ -14,7 +14,7 @@ import type { Participant } from "../src/protocol/index.js";
 import { createRoomHttpServer, participantTokenHash } from "../src/server/index.js";
 
 async function makeRoot(): Promise<string> {
-  return mkdtemp(path.join(os.tmpdir(), "telegent-server-test-"));
+  return mkdtemp(path.join(os.tmpdir(), "agentgather-server-test-"));
 }
 
 async function startFixture(): Promise<{
@@ -72,7 +72,7 @@ test("HTTP core exposes every non-wait endpoint", async () => {
   try {
     const browser = await fetch(`${fixture.baseUrl}/`);
     assert.equal(browser.status, 200);
-    assert.match(await browser.text(), /Telegent Room/);
+    assert.match(await browser.text(), /Agent Gather Room/);
 
     const brief = await jsonFetch(fixture, "GET", "/brief", fixture.agentToken);
     assert.equal(brief.status, 200);

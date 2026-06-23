@@ -33,7 +33,7 @@ async function makeContext(): Promise<{ context: CliContext; stdout: Capture; st
   const stderr = new Capture();
   return {
     context: {
-      home: await mkdtemp(path.join(os.tmpdir(), "telegent-cli-diagnostics-test-")),
+      home: await mkdtemp(path.join(os.tmpdir(), "agentgather-cli-diagnostics-test-")),
       stdout,
       stderr
     },
@@ -60,7 +60,7 @@ test("export writes a readable artifact without mutating source messages", async
   assert.equal(exported.messages, before.length);
 
   const body = await readFile(output, "utf8");
-  assert.match(body, /# Telegent Room Export: export-room/);
+  assert.match(body, /# Agent Gather Room Export: export-room/);
   assert.match(body, /@reviewer capture this/);
   assert.deepEqual(await readMessages(context.home, "export-room"), before);
 });

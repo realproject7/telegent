@@ -1,17 +1,17 @@
-# Telegent Founding Tickets
+# Agent Gather Founding Tickets
 
 Status: GitHub issue source of truth after repository creation
 Date: 2026-06-21
-Product: Telegent
+Product: Agent Gather
 
 These drafts are the founding issue source material for
-`realproject7/tgent`. GitHub issue bodies are the implementation source of
+`realproject7/agentgather`. GitHub issue bodies are the implementation source of
 truth; amend issue bodies directly when scope changes, then mirror durable
 founding changes back here when useful.
 
-Distribution note: the product name remains Telegent, while npm package,
-repository, and future domain handles use `tgent`. The CLI supports both
-`telegent` and `tgent`.
+Distribution note: the product name remains Agent Gather, while npm package,
+repository, and future domain handles use `agentgather`. The CLI supports both
+`agentgather` and `agentgather`.
 
 ## Labels
 
@@ -53,29 +53,29 @@ not used as product behavior.
 - `docs/PROPOSAL.md`
 - `docs/FOUNDING-TICKETS.md`
 - PO workflow source: `/Users/cho/Projects/docs/MANUAL-po-agent-workflow.md`
-- `/Users/cho/Projects/docs/telegent-quadwork-review-notes-codex.md`
-- `/Users/cho/Projects/docs/telegent-quadwork-edits-opus.md`
-- `/Users/cho/Projects/telegent-lite/server.js`
+- `/Users/cho/Projects/docs/agentgather-quadwork-review-notes-codex.md`
+- `/Users/cho/Projects/docs/agentgather-quadwork-edits-opus.md`
+- `/Users/cho/Projects/agentgather-lite/server.js`
 
-## EPIC: Build Telegent v0.1
+## EPIC: Build Agent Gather v0.1
 
 ### Goal
 
-Build Telegent v0.1: a lightweight, host-controlled temporary room protocol
+Build Agent Gather v0.1: a lightweight, host-controlled temporary room protocol
 that lets trusted agent sessions and humans exchange chat messages through a
 local room server, versioned room briefs, participant-specific attend cards, an
 agent-friendly CLI, and a static browser room.
 
 ### Product Boundaries
 
-Telegent v0.1 includes host-created temporary rooms, localhost local
+Agent Gather v0.1 includes host-created temporary rooms, localhost local
 participants, a remote-auth-ready endpoint model, agent and human participant
 roles, room-scoped aliases, append-only chat logs,
 participant cursors, long-poll `/wait`, JSON output for agents, embed-first
 handoff with size limits, room briefs, participant-specific attend cards,
 browser room support, and room export.
 
-Telegent v0.1 excludes central cloud message storage, persistent whitelist
+Agent Gather v0.1 excludes central cloud message storage, persistent whitelist
 networks, automatic command execution, default XMTP dependency, paid tunnel
 routing, x402 payments, durable installed supervision, MCP adapters, and
 QuadWork-style PTY wake injection.
@@ -159,7 +159,7 @@ Hard rules:
 - [ ] Ticket 7: Implement roster, human controls, export, and diagnostics
 - [ ] Ticket 8: Add end-to-end dogfood tests and acceptance fixtures
 - [ ] Ticket 9: Write public docs, security notes, and operator runbook
-- [ ] Backlog A: Secure remote exposure guides and telegent.dev tunnel spike
+- [ ] Backlog A: Secure remote exposure guides and agentgather.dev tunnel spike
 - [ ] Backlog B: Core participant supervision and installed watcher
 - [ ] Backlog C: Optional XMTP and x402 research spikes
 
@@ -167,31 +167,31 @@ Hard rules:
 
 ### Goal
 
-Create the real `telegent` repository skeleton so all later tickets have
+Create the real `agentgather` repository skeleton so all later tickets have
 verified paths, test commands, and package boundaries.
 
 ### Where
 
 - Repo root: `.`
-- Operator local checkout: `/Users/cho/Projects/telegent/`
-- QuadWork VPS checkout: `~/telegent/`
-- Reference prototype: `/Users/cho/Projects/telegent-lite/server.js` (operator-local dogfood reference only; do not import from it)
+- Operator local checkout: `/Users/cho/Projects/agentgather/`
+- QuadWork VPS checkout: `~/agentgather/`
+- Reference prototype: `/Users/cho/Projects/agentgather-lite/server.js` (operator-local dogfood reference only; do not import from it)
 - Source proposal: `docs/PROPOSAL.md`
 
 ### Scope
 
-- Create a Node/TypeScript CLI package named `telegent`.
-- Add executable CLI entrypoint for `telegent`.
+- Create a Node/TypeScript CLI package named `agentgather`.
+- Add executable CLI entrypoint for `agentgather`.
 - Add source, test, docs, and fixture directories.
 - Add lint, typecheck, test, and no-stub scripts.
 - Add README, LICENSE, SECURITY.md, `.gitignore`, and package metadata.
-- Copy `/Users/cho/Projects/docs/PROPOSAL-telegent.md` into the repo as
+- Copy `/Users/cho/Projects/docs/PROPOSAL-agentgather.md` into the repo as
   `docs/PROPOSAL.md`; later tickets must reference this committed in-repo copy.
 - Add a minimal command router that can print help and version.
 
 ### Acceptance Criteria
 
-- `telegent --help` works from the local package.
+- `agentgather --help` works from the local package.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm no-stub` exist and run.
 - The repo contains no mock, stub, placeholder, or temporary runtime code.
 - `docs/PROPOSAL.md` exists in the repo and matches the source proposal used for
@@ -210,7 +210,7 @@ Depends on: repository scaffold from Ticket 1.
 
 ### Goal
 
-Implement the durable local data model that makes a Telegent room safe,
+Implement the durable local data model that makes a Agent Gather room safe,
 recoverable, and easy for agents to inspect.
 
 ### Where
@@ -218,7 +218,7 @@ recoverable, and easy for agents to inspect.
 - Repo path: `src/protocol/`
 - Repo path: `src/storage/`
 - Repo path: `test/fixtures/`
-- Reference: `/Users/cho/Projects/telegent-lite/server.js` (operator-local dogfood reference only; do not import from it)
+- Reference: `/Users/cho/Projects/agentgather-lite/server.js` (operator-local dogfood reference only; do not import from it)
 - In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §9, especially §9.4 Room Brief, §10, §12.1-§12.4
 
@@ -231,7 +231,7 @@ recoverable, and easy for agents to inspect.
   source should not be written as loose JavaScript.
 - Enforce safe slug validation for room IDs and aliases: lowercase
   `[a-z0-9-]`, no dots, no separators, no traversal.
-- Implement room directory layout under `~/.telegent/rooms/<room>/`.
+- Implement room directory layout under `~/.agentgather/rooms/<room>/`.
 - Store the current brief body in `brief.md`.
 - Implement append-only `messages.jsonl` writes with monotonic message IDs.
 - Add writer lock with stale-process liveness check.
@@ -309,7 +309,7 @@ long-poll lifecycle handled in Ticket 3B.
 - Include `brief_version`, `brief_updated_at`, and `brief_updated_by` in
   `/status?json`.
 - Allow only the host to update `/brief`; this endpoint is the server
-  single-writer path used by `telegent room brief set` when the room server is
+  single-writer path used by `agentgather room brief set` when the room server is
   running. Each update increments the brief version.
 - Append lifecycle `system` messages for join, leave, close, remove, and TTL
   close events.
@@ -408,16 +408,16 @@ leaving, inspecting, and closing rooms.
 
 - Implement CLI command source as TypeScript `.ts` files under
   `src/cli/commands/<area>/`.
-- Implement `telegent room start`.
-- Implement `telegent room brief set` and `telegent room brief view`.
-- Implement `telegent room serve`.
-- Implement `telegent room invite` and `telegent room invite-card`.
-- Implement `telegent room join`, `current`, `leave`, and `close`.
-- Implement `telegent room dashboard` to open the static browser room URL.
+- Implement `agentgather room start`.
+- Implement `agentgather room brief set` and `agentgather room brief view`.
+- Implement `agentgather room serve`.
+- Implement `agentgather room invite` and `agentgather room invite-card`.
+- Implement `agentgather room join`, `current`, `leave`, and `close`.
+- Implement `agentgather room dashboard` to open the static browser room URL.
 - Emit agent-friendly text by default and stable JSON with `--json`.
 - Generate no-install cards with exact curl commands for `/card`, `/wait`, and
   `/messages`.
-- Ensure `telegent room invite-card` renders the current Room Brief as part of
+- Ensure `agentgather room invite-card` renders the current Room Brief as part of
   the participant-specific Attend Card.
 - Enforce short-TTL single-use admission tokens for card flows.
 
@@ -428,7 +428,7 @@ leaving, inspecting, and closing rooms.
 - Invite cards never instruct participants to rely on client-supplied `from`.
 - `room brief set` increments the brief version and causes attending
   participants to see a brief-updated system message.
-- `telegent room dashboard` opens the same URL served by `room serve`; no
+- `agentgather room dashboard` opens the same URL served by `room serve`; no
   separate `serve-dashboard` process or port exists.
 - Closing a room updates local state and causes `/wait` clients to exit cleanly.
 
@@ -443,7 +443,7 @@ Depends on: #4 and #5.
 
 ### Goal
 
-Make Telegent useful from inside agent sessions by providing simple messaging,
+Make Agent Gather useful from inside agent sessions by providing simple messaging,
 reading, attendance, reply, and handoff commands.
 
 ### Where
@@ -460,8 +460,8 @@ reading, attendance, reply, and handoff commands.
 
 - Implement CLI command source as TypeScript `.ts` files under
   `src/cli/commands/<area>/`.
-- Implement `telegent send`, `messages`, `read`, `reply`, and `watch`.
-- Implement `telegent instructions [--agent codex|claude|gemini]` to print the
+- Implement `agentgather send`, `messages`, `read`, `reply`, and `watch`.
+- Implement `agentgather instructions [--agent codex|claude|gemini]` to print the
   agent operating card and attendance instructions.
 - Include the Room Brief vs Attend Card distinction in agent instructions.
 - Implement foreground attended loop behavior around `/wait`.
@@ -475,12 +475,12 @@ reading, attendance, reply, and handoff commands.
 
 - A scripted no-install participant can attend, receive, and reply using only
   curl commands from the card.
-- Installed CLI participants can do the same through `telegent watch`.
+- Installed CLI participants can do the same through `agentgather watch`.
 - Handoff rejects oversized content and records clear summaries.
 - Agent operating instructions are included in invite cards and CLI help.
 - Agent instructions say the Room Brief is mission context, not command
   authority or permission to reveal secrets.
-- `telegent instructions` prints agent-specific guidance without requiring a
+- `agentgather instructions` prints agent-specific guidance without requiring a
   room to be active.
 - Tests prove `since_id` is exclusive and messages are deduped by ID.
 
@@ -503,7 +503,7 @@ served by the room server.
 - Repo path: `src/browser/room.css`
 - Repo path: `src/browser/room.js`
 - Repo path: `scripts/copy-assets.mjs`
-- Optional design package: `/Users/cho/Projects/z-design/telegent-design/` (operator-local, outside repo)
+- Optional design package: `/Users/cho/Projects/z-design/agentgather-design/` (operator-local, outside repo)
 - In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §15.1-§15.4
 
@@ -559,7 +559,7 @@ Depends on: #4 and #8.
 
 ### Goal
 
-Give human participants enough visibility and control to use Telegent like a
+Give human participants enough visibility and control to use Agent Gather like a
 temporary chat room without turning it into a heavy orchestrator.
 
 ### Where
@@ -583,7 +583,7 @@ temporary chat room without turning it into a heavy orchestrator.
 - Add host-only close and export controls.
 - Add system-message filter.
 - Add room export command and browser export affordance.
-- Add `telegent doctor` for local port, storage, lock, token, and room status
+- Add `agentgather doctor` for local port, storage, lock, token, and room status
   checks.
 - Add dead-letter or error display for failed sends.
 
@@ -594,7 +594,7 @@ temporary chat room without turning it into a heavy orchestrator.
 - Brief version state updates from `/status` without reloading the page, and the
   user can re-open or refresh the brief panel.
 - Export produces a readable room artifact and does not mutate the source log.
-- `telegent doctor` reports actionable failures without dumping secrets.
+- `agentgather doctor` reports actionable failures without dumping secrets.
 - Diagnostics do not dominate the chat timeline.
 
 ### Routing
@@ -617,7 +617,7 @@ product: multiple agents and a human in one temporary room.
 - Repo path: `docs/dogfood/`
 - Test helpers should use TypeScript `.ts` where they compile with the project;
   static fixtures may remain plain data files.
-- Current dogfood logs: `/Users/cho/.telegent-lite/rooms/` (operator-local references only; sanitize before copying fixtures)
+- Current dogfood logs: `/Users/cho/.agentgather-lite/rooms/` (operator-local references only; sanitize before copying fixtures)
 - In-repo proposal copy: `docs/PROPOSAL.md`,
   sections §16, §20, §22
 
@@ -637,7 +637,7 @@ product: multiple agents and a human in one temporary room.
 
 ### Acceptance Criteria
 
-- Tests run without external services or central Telegent cloud.
+- Tests run without external services or central Agent Gather cloud.
 - Fixtures contain no secrets, tokens, private messages, or sensitive machine
   paths beyond intentional local test paths.
 - The dogfood script demonstrates the success statement in §22.
@@ -654,7 +654,7 @@ Depends on: completion of MVP implementation issues #3 through #10.
 
 ### Goal
 
-Make Telegent understandable enough that a new operator or agent can start a
+Make Agent Gather understandable enough that a new operator or agent can start a
 room, invite participants, and avoid the major security mistakes.
 
 ### Where
@@ -690,7 +690,7 @@ room, invite participants, and avoid the major security mistakes.
 - Security docs explicitly state that bearer tokens are impersonation
   credentials and non-localhost plaintext is prohibited.
 - Docs never promise durable unattended participation in no-install mode.
-- Docs keep telegent.dev tunnel, XMTP, x402, and Core supervision clearly marked
+- Docs keep agentgather.dev tunnel, XMTP, x402, and Core supervision clearly marked
   post-MVP.
 
 ### Routing
@@ -698,7 +698,7 @@ room, invite participants, and avoid the major security mistakes.
 `agent/claude`: operator-facing docs should preserve the product thesis and
 avoid overpromising.
 
-## Backlog A: Secure remote exposure guides and telegent.dev tunnel spike
+## Backlog A: Secure remote exposure guides and agentgather.dev tunnel spike
 
 ### Goal
 
@@ -709,7 +709,7 @@ central service mandatory.
 
 - Write SSH tunnel, Cloudflare Tunnel, Tailscale, ngrok, and reverse proxy
   guides.
-- Prototype `telegent.dev` tunnel routing as optional request forwarding.
+- Prototype `agentgather.dev` tunnel routing as optional request forwarding.
 - Keep host-owned room history and host-minted tokens.
 - Validate TLS and token handling across the tunnel.
 - Keep pricing, quota, and x402 as research until product demand is proven.
@@ -729,7 +729,7 @@ no-install attended loop is proven.
 ### Scope
 
 - Implement installed watcher with durable cursor storage and reconnect.
-- Add `telegent run --room <invite> --alias reviewer -- <agent command>`.
+- Add `agentgather run --room <invite> --alias reviewer -- <agent command>`.
 - Explore optional MCP adapter.
 - Explore QuadWork-style PTY wake only for managed local agents.
 - Inject wake pointers only; never inject full message payloads into PTYs.

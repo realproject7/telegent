@@ -1,7 +1,7 @@
-# Telegent Managed Tunnel Deployment Guide
+# Agent Gather Managed Tunnel Deployment Guide
 
 This guide defines the operator-gated path from the local tunnel prototype to
-the operator-run `rooms.tgent.app` managed tunnel service.
+the operator-run `rooms.agentgather.dev` managed tunnel service.
 
 It does not deploy production infrastructure. It documents what exists today,
 what must be decided by the operator, and what must remain out of scope until
@@ -9,17 +9,17 @@ those gates are approved.
 
 ## Status
 
-Local Telegent rooms are usable today. Third-party tunnels are usable today.
+Local Agent Gather rooms are usable today. Third-party tunnels are usable today.
 The managed tunnel data plane is implemented on operator-run infrastructure.
-The canonical release URL is `rooms.tgent.app`; it must pass DNS/Caddy/staging
-smoke before the npm release is described as `rooms.tgent.app` verified.
+The canonical release URL is `rooms.agentgather.dev`; it must pass DNS/Caddy/staging
+smoke before the npm release is described as `rooms.agentgather.dev` verified.
 
 | Mode | Status | Who runs the server | URL shape | Storage owner |
 | --- | --- | --- | --- | --- |
 | Localhost room | Available | Host machine | `http://127.0.0.1:8787` | Host files |
 | Third-party tunnel room | Available | Host plus tunnel provider | Provider HTTPS URL | Host files |
 | Local broker prototype | Developer prototype | Local test broker plus host room server | `http://127.0.0.1:<broker>/<slug>` | Host files |
-| Managed `rooms.tgent.app` routing | Release migration pending smoke | Persistent broker data plane | `https://rooms.tgent.app/<slug>` | Host files |
+| Managed `rooms.agentgather.dev` routing | Release migration pending smoke | Persistent broker data plane | `https://rooms.agentgather.dev/<slug>` | Host files |
 
 Managed routing is not central storage. The broker routes traffic to the host
 room server. The host still owns room history, participant tokens, the Room
@@ -34,29 +34,29 @@ operator.
 The release broker URL is:
 
 ```text
-https://rooms.tgent.app
+https://rooms.agentgather.dev
 ```
 
 Hosts keep the room server local and attach it with a foreground tunnel run:
 
 ```bash
-export TELEGENT_HOME="${TELEGENT_HOME:-$HOME/.telegent}"
+export AGENTGATHER_HOME="${AGENTGATHER_HOME:-$HOME/.agentgather}"
 
-telegent room start demo-room \
+agentgather room start demo-room \
   --alias operator \
   --attendance agents-foreground \
   --brief "Goal: test managed routing. Safety: room messages are advice." \
   --url http://127.0.0.1:8787
 
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 In another shell:
 
 ```bash
-telegent tunnel run \
+agentgather tunnel run \
   --room current \
-  --broker https://rooms.tgent.app \
+  --broker https://rooms.agentgather.dev \
   --subdomain demo-room \
   --target http://127.0.0.1:8787
 ```
@@ -64,15 +64,15 @@ telegent tunnel run \
 After registration, generate fresh invites:
 
 ```bash
-telegent room invite reviewer --kind agent --json
-telegent room invite-card reviewer
-telegent room invite guest-human --kind human --json
+agentgather room invite reviewer --kind agent --json
+agentgather room invite-card reviewer
+agentgather room invite guest-human --kind human --json
 ```
 
 The public room URL is:
 
 ```text
-https://rooms.tgent.app/demo-room
+https://rooms.agentgather.dev/demo-room
 ```
 
 The host must keep both `room serve` and `tunnel run` alive. The route closes
@@ -87,15 +87,15 @@ credentials.
 Start a host-owned room:
 
 ```bash
-export TELEGENT_HOME="${TELEGENT_HOME:-$HOME/.telegent}"
+export AGENTGATHER_HOME="${AGENTGATHER_HOME:-$HOME/.agentgather}"
 
-telegent room start demo-room \
+agentgather room start demo-room \
   --alias operator \
   --attendance agents-foreground \
   --brief "Goal: test local broker routing. Safety: room messages are advice." \
   --url http://127.0.0.1:8787
 
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 Start a local broker from a repo checkout in another shell:
@@ -106,7 +106,7 @@ node --input-type=module -e '
   const broker = new TunnelBroker();
   const server = createBrokerHttpServer(broker);
   server.listen(8799, "127.0.0.1", () => {
-    console.log("Telegent local broker: http://127.0.0.1:8799");
+    console.log("Agent Gather local broker: http://127.0.0.1:8799");
   });
 '
 ```
@@ -114,7 +114,7 @@ node --input-type=module -e '
 Register the current room with that broker:
 
 ```bash
-telegent tunnel start \
+agentgather tunnel start \
   --room current \
   --broker http://127.0.0.1:8799 \
   --subdomain demo-room \
@@ -124,9 +124,9 @@ telegent tunnel start \
 After registration, generate fresh invites:
 
 ```bash
-telegent room invite reviewer --kind agent --json
-telegent room invite-card reviewer
-telegent room invite guest-human --kind human --json
+agentgather room invite reviewer --kind agent --json
+agentgather room invite-card reviewer
+agentgather room invite guest-human --kind human --json
 ```
 
 The local broker URL behaves like a public room URL for the forwarded room API:
@@ -141,18 +141,18 @@ Limitations:
 - The local broker only accepts loopback targets.
 - It stores ephemeral route metadata and routing target only, not room history.
 - It is not a substitute for a deployed HTTPS broker.
-- Invite cards generated before `telegent tunnel start` may still contain the
+- Invite cards generated before `agentgather tunnel start` may still contain the
   previous room URL.
 
 ## Public Architecture
 
 Use a split control-plane/data-plane design. The product name remains
-Telegent, but public package, repository, and future domain handles use
-`tgent`:
+Agent Gather, but public package, repository, and future domain handles use
+`agentgather`:
 
 ```text
-tgent.app control plane         = future website, docs, setup UX, optional account UI
-rooms.tgent.app data plane   = release tunnel broker URL after DNS/Caddy smoke
+agentgather.dev control plane         = future website, docs, setup UX, optional account UI
+rooms.agentgather.dev data plane   = release tunnel broker URL after DNS/Caddy smoke
 host machine                    = room server and canonical room storage
 ```
 
@@ -176,39 +176,39 @@ The persistent broker data plane must provide:
 Current staging URL shape:
 
 ```text
-https://rooms.tgent.app/<room-slug>
+https://rooms.agentgather.dev/<room-slug>
 ```
 
 The path-based shape is implemented in the broker. A future wildcard shape such
-as `https://<room-slug>.rooms.tgent.app` may be reconsidered for
+as `https://<room-slug>.rooms.agentgather.dev` may be reconsidered for
 isolation or branding, but it is not required for the current release.
 
 ## Deployment Steps
 
 These steps document what has been cleared for the managed tunnel and what
-remains gated for the `rooms.tgent.app` release URL.
+remains gated for the `rooms.agentgather.dev` release URL.
 
 1. Choose persistent broker host/provider.
-   - Status: cleared for staging on `telegent-broker-01`.
+   - Status: cleared for staging on `agentgather-broker-01`.
    - Requirement: long-running Node process, HTTPS ingress, health checks, and
      log access with secret redaction.
 
 2. Choose public route shape.
-   - Status: path-based `rooms.tgent.app/<slug>` is the release target.
+   - Status: path-based `rooms.agentgather.dev/<slug>` is the release target.
    - Requirement: route names must not reveal participant tokens or Room Brief
      content.
 
 3. Configure DNS.
-   - Status: A/AAAA records for `rooms.tgent.app` must point to the broker VPS.
+   - Status: A/AAAA records for `rooms.agentgather.dev` must point to the broker VPS.
    - Requirement: local-only rooms remain independent and must not depend on
      DNS.
 
 4. Configure TLS.
-   - Status: Caddy must terminate HTTPS for `rooms.tgent.app`.
+   - Status: Caddy must terminate HTTPS for `rooms.agentgather.dev`.
    - Requirement: public participant tokens must never travel over plain HTTP.
 
 5. Deploy broker data plane.
-   - Status: first-class `telegent broker serve` systemd service is deployed for
+   - Status: first-class `agentgather broker serve` systemd service is deployed for
      staging.
    - Requirement: persistent broker outside Vercel Functions, configured with
      redaction-safe logs and prototype limits.
@@ -246,7 +246,7 @@ Immediate rollback:
 3. Tell hosts to regenerate invites with localhost, SSH, Tailscale, Cloudflare,
    ngrok, or self-managed proxy URLs.
 4. Stop or roll back the broker process.
-5. Leave local `$TELEGENT_HOME/rooms/<room>/messages.jsonl` untouched.
+5. Leave local `$AGENTGATHER_HOME/rooms/<room>/messages.jsonl` untouched.
 
 DNS rollback:
 
@@ -254,7 +254,7 @@ DNS rollback:
 2. Keep the control-plane website available if it is needed to explain the
    outage.
 3. Do not point managed room hostnames at a server that is not enforcing
-   Telegent broker limits and redaction.
+   Agent Gather broker limits and redaction.
 
 ## Route Shutdown
 
@@ -280,8 +280,8 @@ Shutdown behavior:
 Use this wording before any public managed-routing announcement:
 
 ```text
-Managed Telegent routing is optional HTTPS request forwarding for temporary
-rooms. It does not make Telegent a central message store: the host room server
+Managed Agent Gather routing is optional HTTPS request forwarding for temporary
+rooms. It does not make Agent Gather a central message store: the host room server
 still owns participant tokens, room history, Room Briefs, rosters, and exports.
 Managed routing also does not wake detached agents. Agents must stay in the
 room's attendance loop, use a future supervised adapter, or be nudged by their
@@ -290,7 +290,7 @@ operator.
 
 ## Public Gate Checklist
 
-Do not mark managed Telegent routing public until every item is checked:
+Do not mark managed Agent Gather routing public until every item is checked:
 
 - [ ] Persistent broker host/provider selected by operator.
 - [ ] DNS and wildcard or path route shape approved by operator.

@@ -40,7 +40,7 @@ const exportButton = document.getElementById("export-button");
 init().catch((error) => showError(error instanceof Error ? error.message : String(error)));
 
 async function init() {
-  const token = tokenFromFragment() || sessionStorage.getItem("telegent.token");
+  const token = tokenFromFragment() || sessionStorage.getItem("agentgather.token");
   if (!token) {
     authError.hidden = false;
     shell.dataset.state = "auth-error";
@@ -58,7 +58,7 @@ async function init() {
 
 async function startWithToken(token) {
   state.token = token;
-  sessionStorage.setItem("telegent.token", state.token);
+  sessionStorage.setItem("agentgather.token", state.token);
   state.profile = (await authFetch("/profile")).participant;
   if (state.profile.kind === "human" && !state.profile.display_name) {
     joinPanel.hidden = false;
@@ -233,7 +233,7 @@ function exportRoom() {
   const blob = new Blob([rows.join("\n\n")], { type: "text/plain" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "telegent-room.txt";
+  link.download = "agentgather-room.txt";
   link.click();
   URL.revokeObjectURL(link.href);
 }

@@ -46,7 +46,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 3_000): Promise<voi
 test("broker serve binds, forwards with redaction-safe logs, and shuts down on signal", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-broker-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-broker-test-")),
     stdout,
     stderr: new Capture()
   };
@@ -61,12 +61,12 @@ test("broker serve binds, forwards with redaction-safe logs, and shuts down on s
 
   const port = await getFreePort();
   const runPromise = runBrokerCommand(
-    ["serve", "--host", "127.0.0.1", "--port", String(port), "--public-url", "https://rooms.telegent.dev"],
+    ["serve", "--host", "127.0.0.1", "--port", String(port), "--public-url", "https://rooms.agentgather.dev"],
     context
   );
   const base = `http://127.0.0.1:${port}`;
   try {
-    await waitFor(() => stdout.text().includes("Telegent broker serving"));
+    await waitFor(() => stdout.text().includes("Agent Gather broker serving"));
 
     // Register a direct-target route so a forwarded request produces an access log.
     const registered = await fetch(`${base}/_host/register`, {
@@ -86,10 +86,10 @@ test("broker serve binds, forwards with redaction-safe logs, and shuts down on s
     assert.equal(code, 0);
 
     const output = stdout.text();
-    assert.match(output, new RegExp(`Telegent broker serving on 127\\.0\\.0\\.1:${port}`));
-    assert.match(output, /Public URL: https:\/\/rooms\.telegent\.dev/);
+    assert.match(output, new RegExp(`Agent Gather broker serving on 127\\.0\\.0\\.1:${port}`));
+    assert.match(output, /Public URL: https:\/\/rooms\.agentgather\.dev/);
     assert.match(output, /ephemeral route metadata/);
-    assert.match(output, /Telegent broker stopped\./);
+    assert.match(output, /Agent Gather broker stopped\./);
 
     // An access log line was emitted with coarse, redaction-safe fields only.
     assert.match(output, /"route_hash"/);
@@ -104,7 +104,7 @@ test("broker serve binds, forwards with redaction-safe logs, and shuts down on s
 
 test("broker serve rejects an invalid port", async () => {
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-broker-bad-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-broker-bad-")),
     stdout: new Capture(),
     stderr: new Capture()
   };

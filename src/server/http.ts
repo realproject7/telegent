@@ -608,7 +608,7 @@ export function renderAttendCard(
   attendancePolicy: AttendancePolicy = "manual-ok"
 ): string {
   return [
-    `# Telegent Attend Card: ${alias}`,
+    `# Agent Gather Attend Card: ${alias}`,
     "",
     "## Room Brief",
     brief.body || "(empty)",
@@ -621,15 +621,15 @@ export function renderAttendCard(
     `curl -s "${roomUrl(baseUrl, `/card?participant=${alias}&token=${token}`)}"`,
     `curl -s -X POST "${roomUrl(baseUrl, "/join")}" -H "Authorization: Bearer ${token}"`,
     `curl -s "${roomUrl(baseUrl, `/wait?participant=${alias}&since_id=0`)}" -H "Authorization: Bearer ${token}"`,
-    `telegent attend --json`,
+    `agentgather attend --json`,
     `curl -s "${roomUrl(baseUrl, "/messages?since_id=0")}" -H "Authorization: Bearer ${token}"`,
     `curl -s -X POST "${roomUrl(baseUrl, "/messages")}" -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data '{"text":"hello"}'`,
     "",
     "## Attendance Recovery",
     "If you run a tool command or shell script, return to foreground attendance immediately after it finishes:",
-    "telegent attend --json",
+    "agentgather attend --json",
     "If a shell command contains pipes, quotes, or `${...}`, ask the host for a script file and run one quote-free command such as `bash /path/to/script.sh`.",
-    "If the attend loop stops, Telegent v0.1 cannot wake this session automatically; the host will see you as stale until you rejoin or attend again.",
+    "If the attend loop stops, Agent Gather v0.1 cannot wake this session automatically; the host will see you as stale until you rejoin or attend again.",
     "",
     renderAgentInstructions()
   ].join("\n");

@@ -48,8 +48,8 @@ async function makeContext(prefix: string): Promise<{ context: CliContext; stdou
 }
 
 test("e2e dogfood: local CLI agent, no-install curl agent, browser human, brief updates, and close", async () => {
-  const host = await makeContext("telegent-e2e-host-");
-  const reviewer = await makeContext("telegent-e2e-reviewer-");
+  const host = await makeContext("agentgather-e2e-host-");
+  const reviewer = await makeContext("agentgather-e2e-reviewer-");
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 

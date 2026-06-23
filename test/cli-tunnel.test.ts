@@ -42,7 +42,7 @@ async function makeContext(): Promise<{ context: CliContext; stdout: Capture; st
   const stdout = new Capture();
   const stderr = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-tunnel-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-tunnel-test-")),
     stdout,
     stderr
   };

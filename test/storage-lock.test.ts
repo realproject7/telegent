@@ -6,7 +6,7 @@ import test from "node:test";
 import { withWriterLock } from "../src/storage/index.js";
 
 async function makeRoot(): Promise<string> {
-  return mkdtemp(path.join(os.tmpdir(), "telegent-lock-test-"));
+  return mkdtemp(path.join(os.tmpdir(), "agentgather-lock-test-"));
 }
 
 test("withWriterLock removes a stale lock whose process is no longer alive", async () => {

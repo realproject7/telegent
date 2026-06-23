@@ -1,15 +1,15 @@
-# Telegent Tunnel Routing Architecture
+# Agent Gather Tunnel Routing Architecture
 
-Telegent's managed routing layer is optional request forwarding for remote
+Agent Gather's managed routing layer is optional request forwarding for remote
 rooms. It must not become the canonical message server. The release broker URL
-is `rooms.tgent.app`; future public control-plane domains should use the
-`tgent.app` family.
+is `rooms.agentgather.dev`; future public control-plane domains should use the
+`agentgather.dev` family.
 
 The host still owns:
 
 - room creation and close lifecycle
 - participant tokens
-- room history under `$TELEGENT_HOME/rooms/<room>/messages.jsonl`
+- room history under `$AGENTGATHER_HOME/rooms/<room>/messages.jsonl`
 - Room Brief, roster, attendance policy, and export artifacts
 
 The routing service may own:
@@ -26,8 +26,8 @@ The routing service may own:
 Use a split architecture:
 
 ```text
-tgent.app control plane         = future Vercel-hosted website/API and domain UX
-rooms.tgent.app data plane      = release broker URL, not Vercel Functions
+agentgather.dev control plane         = future Vercel-hosted website/API and domain UX
+rooms.agentgather.dev data plane      = release broker URL, not Vercel Functions
 host CLI tunnel client          = outbound connection from host to broker
 ```
 
@@ -42,19 +42,19 @@ Implementation order:
 2. Local broker prototype with no public domain. Completed.
 3. Operator deployment guide and public gate checklist. Completed.
 4. Staging broker on persistent infrastructure after operator approval.
-   Completed on the broker VPS; `rooms.tgent.app` DNS/Caddy migration is the
+   Completed on the broker VPS; `rooms.agentgather.dev` DNS/Caddy migration is the
    release target.
-5. Optional `tgent.app` website/control plane after operator approval.
+5. Optional `agentgather.dev` website/control plane after operator approval.
 6. Metering and x402 only after product demand is proven.
 
 ## Data Flow
 
 ```text
 remote participant
-  -> https://rooms.tgent.app/room-slug/messages
+  -> https://rooms.agentgather.dev/room-slug/messages
   -> tunnel broker
   -> existing outbound host tunnel connection
-  -> host Telegent room server on http://127.0.0.1:8787
+  -> host Agent Gather room server on http://127.0.0.1:8787
   -> host-owned room files
 ```
 
@@ -65,24 +65,24 @@ It forwards bytes between remote participants and the host room server.
 
 ### Host Room Server
 
-The existing `telegent room serve` process remains the authority. It validates
+The existing `agentgather room serve` process remains the authority. It validates
 participant bearer tokens, derives sender identity from token ownership, applies
 loop guards, stores messages, and emits `/wait` responses.
 
 For a managed tunnel, the room server should run locally:
 
 ```bash
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 The public URL is supplied by the tunnel client once it is connected:
 
 ```bash
-telegent tunnel run --room current --broker https://rooms.tgent.app --subdomain room-slug
+agentgather tunnel run --room current --broker https://rooms.agentgather.dev --subdomain room-slug
 ```
 
 The tunnel client updates the local current room URL to
-`https://rooms.tgent.app/room-slug` only after the broker confirms the route.
+`https://rooms.agentgather.dev/room-slug` only after the broker confirms the route.
 Invite cards generated before that point may still contain localhost URLs.
 
 ### Host Tunnel Client
@@ -105,7 +105,7 @@ messages. Production host authentication is a later hardening gate.
 
 ### Tunnel Broker
 
-The broker is the data plane for `rooms.tgent.app`.
+The broker is the data plane for `rooms.agentgather.dev`.
 
 Responsibilities:
 
@@ -147,7 +147,7 @@ connections.
 
 Responsibilities:
 
-- public landing/docs for `tgent.app`
+- public landing/docs for `agentgather.dev`
 - account/project setup later, if needed
 - route reservation UI/API later, if needed
 - billing/metering dashboard later, if needed
@@ -159,7 +159,7 @@ operator gate. It still must not store room history.
 ## Why Not Vercel As The Broker
 
 Vercel is useful for domains, static pages, route setup UX, and ordinary request
-handling. It is not the right first broker because the Telegent tunnel data
+handling. It is not the right first broker because the Agent Gather tunnel data
 plane needs long-lived host connections and request multiplexing. Official
 Vercel documentation for WebSocket-style realtime use points readers toward
 dedicated realtime providers. The safer v0.1 architecture is to keep Vercel out
@@ -262,10 +262,10 @@ Can be implemented before operator credentials:
 
 Cleared for staging:
 
-- `rooms.tgent.app` DNS A/AAAA records
+- `rooms.agentgather.dev` DNS A/AAAA records
 - public TLS through Caddy
-- persistent broker infrastructure on `telegent-broker-01`
-- first-class `telegent broker serve` systemd deployment
+- persistent broker infrastructure on `agentgather-broker-01`
+- first-class `agentgather broker serve` systemd deployment
 - staging smoke with curl agent and browser human participants
 
 Still blocked by operator gate:
@@ -287,7 +287,7 @@ Still blocked by operator gate:
    - Acceptance: no public network or credentials required.
 
 2. **Host tunnel client**
-   - Add `telegent tunnel run --room current --broker <url> --subdomain <slug>`.
+   - Add `agentgather tunnel run --room current --broker <url> --subdomain <slug>`.
    - Maintain outbound relay and update current room URL after registration.
    - Acceptance: local broker can reach existing `room serve`.
 
@@ -309,7 +309,7 @@ Still blocked by operator gate:
      route shutdown.
    - Acceptance: no step requires hidden assumptions; all credential actions are
      marked operator gates.
-   - Current guide: `docs/telegent-dev-deployment-guide.md`.
+   - Current guide: `docs/agentgather-dev-deployment-guide.md`.
 
 6. **Metering and x402 research**
    - Define usage counters, free quota units, spending caps, and payment prompts.

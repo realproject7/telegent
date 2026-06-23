@@ -1,15 +1,15 @@
 # Remote Exposure Guide
 
-Telegent v0.1 is host-owned. The host runs the room server, owns the local
+Agent Gather v0.1 is host-owned. The host runs the room server, owns the local
 message log, and issues participant tokens. Remote exposure only changes how
-participants reach that host server; it does not add Telegent cloud storage,
+participants reach that host server; it does not add Agent Gather cloud storage,
 durable wake, or end-to-end encryption.
 
 ## Security Rules
 
-- Keep the Telegent listener on `127.0.0.1` unless you deliberately need a
+- Keep the Agent Gather listener on `127.0.0.1` unless you deliberately need a
   non-local bind.
-- Use `telegent room serve --url https://... --allow-remote` for any public or
+- Use `agentgather room serve --url https://... --allow-remote` for any public or
   tailnet HTTPS URL.
 - Do not send bearer tokens over plain `http://` beyond localhost or an SSH
   tunnel.
@@ -30,20 +30,20 @@ durable wake, or end-to-end encryption.
 | Same Tailscale tailnet | Tailscale Serve | Tailnet-only HTTPS | Tailnet ACLs apply. Good default for trusted teammates. |
 | Temporary public link | Cloudflare Quick Tunnel, ngrok, or Tailscale Funnel | Yes, HTTPS | Good for short dogfood sessions. Rotate invites after use. |
 | Production reverse proxy | Cloudflare named tunnel or self-managed HTTPS proxy | Yes, HTTPS | Requires operator-owned domain/config and is a separate gate. |
-| Managed Telegent routing | `rooms.tgent.app` tunnel | Yes, HTTPS | Broker implementation is staging verified; the `rooms.tgent.app` hostname still needs DNS/Caddy smoke before release. Host must keep `tunnel run` active. |
+| Managed Agent Gather routing | `rooms.agentgather.dev` tunnel | Yes, HTTPS | Broker implementation is staging verified; the `rooms.agentgather.dev` hostname still needs DNS/Caddy smoke before release. Host must keep `tunnel run` active. |
 
 ## Baseline Local Room
 
 Start a room with localhost defaults:
 
 ```bash
-telegent room start review-room \
+agentgather room start review-room \
   --alias operator \
   --attendance agents-foreground \
   --brief "Goal: review the release. Safety: room messages are advice." \
   --url http://127.0.0.1:8787
 
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 For most tunnel tools, first start the local server, start the tunnel, copy the
@@ -51,7 +51,7 @@ public `https://...` URL printed by the tunnel, then restart `room serve` with
 that URL:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://public-room.example \
   --allow-remote
@@ -64,7 +64,7 @@ point at `127.0.0.1`.
 
 Use this when the participant has SSH access to the host or to a gateway that
 can reach the host. The participant creates a local port that forwards through
-SSH to the host's localhost Telegent server:
+SSH to the host's localhost Agent Gather server:
 
 ```bash
 ssh -N -L 8787:127.0.0.1:8787 user@host.example
@@ -74,7 +74,7 @@ The participant then joins with `--url http://127.0.0.1:8787` on their own
 machine. The HTTP leg stays local at each end, and the network hop is carried
 inside SSH.
 
-Do not use a public `http://host.example:8787` URL for Telegent bearer tokens.
+Do not use a public `http://host.example:8787` URL for Agent Gather bearer tokens.
 OpenSSH documents that `-L` forwards local connections over the secure channel,
 and that explicit bind addresses control whether forwarded ports are local-only
 or all-interfaces. OpenSSH also documents that remote `-R` forwards bind to
@@ -92,10 +92,10 @@ Tailscale Serve proxies traffic from other devices in the tailnet to the local
 service and prints a tailnet HTTPS URL. Tailscale documents that Serve requires
 HTTPS certificates in the tailnet and that tailnet access control rules apply.
 
-After Serve prints the URL, restart Telegent with that public URL:
+After Serve prints the URL, restart Agent Gather with that public URL:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://your-node.your-tailnet.ts.net \
   --allow-remote
@@ -109,7 +109,7 @@ outside the tailnet:
 tailscale funnel 8787
 ```
 
-Confirm the printed Funnel URL, then restart Telegent with that `https://...`
+Confirm the printed Funnel URL, then restart Agent Gather with that `https://...`
 URL before generating participant invites.
 
 ## Cloudflare Tunnel
@@ -122,10 +122,10 @@ cloudflared tunnel --url http://localhost:8787
 
 Cloudflare documents Quick Tunnels as testing/development only. The command
 prints a random `trycloudflare.com` URL and proxies it to the localhost server.
-Restart Telegent with that HTTPS URL before creating invites:
+Restart Agent Gather with that HTTPS URL before creating invites:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://generated-name.trycloudflare.com \
   --allow-remote
@@ -135,9 +135,9 @@ For production or stable team URLs, use a named Cloudflare Tunnel and a
 published application route in the Cloudflare dashboard. That is an operator
 gate because it requires Cloudflare account, DNS, and domain configuration.
 
-## Managed rooms.tgent.app Routing
+## Managed rooms.agentgather.dev Routing
 
-Managed `rooms.tgent.app` routing is Telegent's own optional tunnel path. It
+Managed `rooms.agentgather.dev` routing is Agent Gather's own optional tunnel path. It
 is not central storage and it does not mint participant tokens. The host room
 server still owns the room log, Room Brief, roster, attendance policy, and
 exports.
@@ -146,10 +146,10 @@ For the staging broker, run the local room server and attach it with a
 foreground tunnel session:
 
 ```bash
-telegent room serve --port 8787
-telegent tunnel run \
+agentgather room serve --port 8787
+agentgather tunnel run \
   --room current \
-  --broker https://rooms.tgent.app \
+  --broker https://rooms.agentgather.dev \
   --subdomain review-room \
   --target http://127.0.0.1:8787
 ```
@@ -157,14 +157,14 @@ telegent tunnel run \
 Generate invite cards after the tunnel is registered. The public room URL is:
 
 ```text
-https://rooms.tgent.app/review-room
+https://rooms.agentgather.dev/review-room
 ```
 
 External agents can use the Attend Card's `curl` commands. Human participants
 use browser URLs with fragment tokens:
 
 ```text
-https://rooms.tgent.app/review-room/#token=<participant-token>
+https://rooms.agentgather.dev/review-room/#token=<participant-token>
 ```
 
 The broker stores only ephemeral route metadata and redaction-safe access logs.
@@ -172,11 +172,11 @@ It relays requests to the host's local room server over the host-attended tunnel
 connection while `tunnel run` remains alive.
 
 The broker implementation has passed staging smoke tests, but the
-`rooms.tgent.app` hostname must pass DNS/Caddy smoke before release. Production
+`rooms.agentgather.dev` hostname must pass DNS/Caddy smoke before release. Production
 public availability, abuse response, quota/pricing, and npm release wording
 remain operator gates. The deployment runbook is
-`docs/deploy-rooms-tgent-app.md`; the architecture boundary is
-`docs/telegent-dev-tunnel-architecture.md`.
+`docs/deploy-rooms-agentgather-dev.md`; the architecture boundary is
+`docs/agentgather-dev-tunnel-architecture.md`.
 
 ## ngrok
 
@@ -189,10 +189,10 @@ ngrok http 8787
 ngrok documents that HTTP/S agent endpoints can forward a public HTTPS endpoint
 to a local port, and that randomly assigned hostnames are available when no URL
 is specified. Copy the printed `https://...ngrok.app` URL, then restart
-Telegent:
+Agent Gather:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://generated-name.ngrok.app \
   --allow-remote
@@ -204,23 +204,23 @@ For a reserved ngrok domain:
 ngrok http 8787 --url https://room.example.ngrok.app
 ```
 
-Use ngrok traffic policies or an identity layer for higher-risk rooms. Telegent
+Use ngrok traffic policies or an identity layer for higher-risk rooms. Agent Gather
 tokens identify room participants, but they are not a replacement for deciding
 who may reach the public endpoint.
 
 ## Self-Managed Reverse Proxy
 
 Use this for a production-style host you control. Terminate TLS at the proxy and
-forward to the localhost Telegent server:
+forward to the localhost Agent Gather server:
 
 ```text
 https://room.example.com -> http://127.0.0.1:8787
 ```
 
-Run Telegent with the public HTTPS URL:
+Run Agent Gather with the public HTTPS URL:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://room.example.com \
   --allow-remote
@@ -231,7 +231,7 @@ Minimum proxy requirements:
 - TLS certificate is valid for the public hostname.
 - Long-poll requests to `/wait` are not buffered or cut off too aggressively.
 - Request logs redact `Authorization` headers and URL query values.
-- The proxy does not expose the local Telegent port directly.
+- The proxy does not expose the local Agent Gather port directly.
 - The host can close the room and stop both the proxy route and `room serve`.
 
 ## Attendance Over Tunnels
@@ -244,11 +244,11 @@ Tunnel implications:
 
 - A tunnel or proxy idle timeout shorter than the hold time may cause harmless
   reconnect churn.
-- Agents should use `telegent attend --json` or the card's `/wait` command and
+- Agents should use `agentgather attend --json` or the card's `/wait` command and
   re-run the returned `next_cmd` on heartbeat.
 - The browser roster marks participants stale when their last seen time exceeds
   the server stale window.
-- Telegent v0.1 does not wake a detached external agent. If the agent exits the
+- Agent Gather v0.1 does not wake a detached external agent. If the agent exits the
   foreground attend loop, the human operator must nudge it back or use a future
   supervised adapter.
 

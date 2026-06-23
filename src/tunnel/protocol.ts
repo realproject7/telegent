@@ -1,4 +1,4 @@
-// Local tunnel protocol for managed telegent.dev routing.
+// Local tunnel protocol for managed agentgather.dev routing.
 //
 // This module defines the wire shapes exchanged between a host tunnel client,
 // the routing broker, and remote participants. It is transport-agnostic and

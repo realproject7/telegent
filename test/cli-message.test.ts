@@ -37,7 +37,7 @@ async function makeContext(): Promise<{ context: CliContext; stdout: Capture; st
   const stderr = new Capture();
   return {
     context: {
-      home: await mkdtemp(path.join(os.tmpdir(), "telegent-cli-message-test-")),
+      home: await mkdtemp(path.join(os.tmpdir(), "agentgather-cli-message-test-")),
       stdout,
       stderr
     },
@@ -112,7 +112,7 @@ test("message CLI sends through the live server, preserves exclusive since_id, a
     await runMessagesCommand(["--since", String(first.message.id - 1), "--json"], fixture.context);
     const inclusiveLowerBound = fixture.stdout.json<{ messages: Array<{ id: number }>; next_cmd: string }>();
     assert.deepEqual(inclusiveLowerBound.messages.map((message) => message.id), [first.message.id]);
-    assert.equal(inclusiveLowerBound.next_cmd, `telegent messages --since ${first.message.id} --json`);
+    assert.equal(inclusiveLowerBound.next_cmd, `agentgather messages --since ${first.message.id} --json`);
 
     fixture.stdout.chunks = [];
     await runMessagesCommand(["--since", String(first.message.id), "--json"], fixture.context);
@@ -169,7 +169,7 @@ test("read stores cursors, reply records reply metadata, and handoff embeds boun
     await runReadCommand(["--json"], fixture.context);
     const read = fixture.stdout.json<{ next_since_id: number; next_cmd: string }>();
     assert.equal(read.next_since_id, sent.message.id);
-    assert.equal(read.next_cmd, `telegent read --since ${sent.message.id} --json`);
+    assert.equal(read.next_cmd, `agentgather read --since ${sent.message.id} --json`);
 
     fixture.stdout.chunks = [];
     await runReadCommand(["--json"], fixture.context);
@@ -205,7 +205,7 @@ test("watch performs one attended wait turn and returns a CLI next command on he
     await runWatchCommand(["--since", "0", "--json"], fixture.context);
     const watched = fixture.stdout.json<{ keep_waiting: boolean; cli_next_cmd: string | null }>();
     assert.equal(watched.keep_waiting, true);
-    assert.equal(watched.cli_next_cmd, "telegent watch --since 0 --json");
+    assert.equal(watched.cli_next_cmd, "agentgather watch --since 0 --json");
   } finally {
     await fixture.close();
   }

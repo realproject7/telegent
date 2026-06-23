@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildHelpText, VERSION } from "../src/cli/help.js";
 
-test("help text describes the Telegent CLI", () => {
+test("help text describes the Agent Gather CLI", () => {
   const help = buildHelpText();
-  assert.match(help, /Telegent/);
+  assert.match(help, /Agent Gather/);
   assert.match(help, /Usage:/);
   assert.match(help, /tunnel start --room current --broker/);
   assert.match(help, /tunnel run --room current --broker/);

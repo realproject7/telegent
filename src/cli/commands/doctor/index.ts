@@ -17,7 +17,7 @@ export async function runDoctorCommand(argv: string[], context: CliContext): Pro
   checks.push({
     name: "current-room",
     ok: current !== null,
-    message: current === null ? "no current room; run telegent room join or room start" : `room=${current.roomId} alias=${current.alias}`
+    message: current === null ? "no current room; run agentgather room join or room start" : `room=${current.roomId} alias=${current.alias}`
   });
   if (current !== null) {
     const paths = roomPaths(context.home, current.roomId);

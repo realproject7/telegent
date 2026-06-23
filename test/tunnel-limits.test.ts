@@ -106,7 +106,7 @@ test("a route hits the max lifetime cap even when heartbeats keep refreshing it"
 test("a request body over the limit is rejected before forwarding", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-limit-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-limit-test-")),
     stdout,
     stderr: new Capture()
   };

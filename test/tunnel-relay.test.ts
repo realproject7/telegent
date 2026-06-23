@@ -61,7 +61,7 @@ interface Fixture {
 async function setup(options: { claimTimeoutMs?: number } = {}): Promise<Fixture> {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-relay-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-relay-test-")),
     stdout,
     stderr: new Capture()
   };
@@ -165,7 +165,7 @@ test("the broker stores no target and relays requests through a host attendant",
 
     const shell = await fetch(`${fixture.publicBaseUrl}/`);
     assert.equal(shell.status, 200);
-    assert.match(await shell.text(), /Telegent Room/);
+    assert.match(await shell.text(), /Agent Gather Room/);
 
     const wait = await fetch(`${fixture.publicBaseUrl}/wait?participant=reviewer&since_id=999`, {
       headers: { Authorization: `Bearer ${fixture.reviewerToken}` }
@@ -252,7 +252,7 @@ test("a duplicate response for the same request id is rejected", async () => {
 test("an over-limit relay request body is rejected before it is queued", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-relay-body-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-relay-body-")),
     stdout,
     stderr: new Capture()
   };
@@ -283,7 +283,7 @@ test("an over-limit relay request body is rejected before it is queued", async (
 test("an over-limit relay response body is rejected with response_too_large", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-relay-resp-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-relay-resp-")),
     stdout,
     stderr: new Capture()
   };

@@ -1,20 +1,19 @@
 {
-  "name": "tgent",
+  "name": "agentgather",
   "version": "0.1.0",
-  "description": "Telegent: lightweight temporary rooms for agent and human collaboration.",
+  "description": "Agent Gather: lightweight temporary rooms for agent and human collaboration.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "telegent": "dist/src/cli/index.js",
-    "tgent": "dist/src/cli/index.js"
+    "agentgather": "dist/src/cli/index.js"
   },
-  "homepage": "https://tgent.app",
+  "homepage": "https://agentgather.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/realproject7/tgent.git"
+    "url": "git+https://github.com/realproject7/agentgather.git"
   },
   "bugs": {
-    "url": "https://github.com/realproject7/tgent/issues"
+    "url": "https://github.com/realproject7/agentgather/issues"
   },
   "keywords": [
     "ai-agent",
@@ -22,8 +21,8 @@
     "collaboration",
     "cli",
     "chat",
-    "telegent",
-    "tgent"
+    "group-chat",
+    "agentgather"
   ],
   "files": [
     "dist/src",

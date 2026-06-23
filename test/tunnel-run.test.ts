@@ -63,7 +63,7 @@ interface Fixture {
 async function setup(options: { waitHoldMs?: number; brokerOptions?: ConstructorParameters<typeof TunnelBroker>[0] } = {}): Promise<Fixture> {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-run-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-run-test-")),
     stdout,
     stderr: new Capture()
   };
@@ -209,7 +209,7 @@ test("the foreground run session keeps the process alive while attending", async
 test("tunnel run installs a signal shutdown that closes the route and prints status", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-run-signal-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-run-signal-")),
     stdout,
     stderr: new Capture()
   };

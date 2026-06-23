@@ -37,7 +37,7 @@ async function getFreePort(): Promise<number> {
 test("e2e tunnel: browser human and curl agent reach the room through the broker", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-tunnel-e2e-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-tunnel-e2e-")),
     stdout,
     stderr: new Capture()
   };

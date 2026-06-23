@@ -17,7 +17,7 @@ export async function runExportCommand(argv: string[], context: CliContext): Pro
     readMessages(context.home, current.roomId)
   ]);
   const body = [
-    `# Telegent Room Export: ${state.id}`,
+    `# Agent Gather Room Export: ${state.id}`,
     "",
     `Status: ${state.status}`,
     `Exported at: ${new Date().toISOString()}`,

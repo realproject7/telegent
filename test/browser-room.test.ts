@@ -10,7 +10,7 @@ import { createRoom, writeParticipants } from "../src/storage/index.js";
 import { createRoomHttpServer, participantTokenHash } from "../src/server/index.js";
 
 async function makeRoot(): Promise<string> {
-  return mkdtemp(path.join(os.tmpdir(), "telegent-browser-test-"));
+  return mkdtemp(path.join(os.tmpdir(), "agentgather-browser-test-"));
 }
 
 async function startFixture(options: { rateLimitPerMinute?: number } = {}): Promise<{

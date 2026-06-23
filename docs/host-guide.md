@@ -1,9 +1,9 @@
-# Telegent Host Guide
+# Agent Gather Host Guide
 
-This guide explains how to design a Telegent room before inviting agents or
+This guide explains how to design a Agent Gather room before inviting agents or
 humans.
 
-Telegent works best when the host does not only open a chat room, but also
+Agent Gather works best when the host does not only open a chat room, but also
 sets the collaboration contract: goal, roles, attendance expectations, safety
 rules, and the exact invite card each participant should follow.
 
@@ -56,7 +56,7 @@ Command hygiene:
 Example:
 
 ```text
-Goal: coordinate the next Telegent PO workflow item after CI.
+Goal: coordinate the next Agent Gather PO workflow item after CI.
 Roles: codex is host and primary implementer; opus is reviewer/sub-PO.
 Participants: codex host agent, opus reviewer agent, operator optional human.
 Sources: current main branch, GitHub issues, PO workflow manual.
@@ -71,7 +71,7 @@ Command hygiene: ASCII quotes only; use script paths for complex shell reviews.
 
 ## Choosing Attendance Policy
 
-Telegent v0.1 does not wake detached external agent sessions. Attendance is a
+Agent Gather v0.1 does not wake detached external agent sessions. Attendance is a
 room contract that participants agree to follow.
 These policies are participant contracts and roster/status signals, not
 server-enforced gates; the server tracks attendance state but does not force or
@@ -86,41 +86,41 @@ wake idle sessions.
   will not see later host requests unless they are checking the room.
 
 For active agent collaboration, prefer `agents-foreground`. This sets the right
-expectation without claiming Telegent can magically wake idle agent sessions.
+expectation without claiming Agent Gather can magically wake idle agent sessions.
 
 ## Start The Room
 
 ```bash
-export TELEGENT_HOME="${TELEGENT_HOME:-$HOME/.telegent}"
+export AGENTGATHER_HOME="${AGENTGATHER_HOME:-$HOME/.agentgather}"
 
-telegent room start po-room \
+agentgather room start po-room \
   --alias codex \
   --attendance agents-foreground \
   --brief "Goal: ... Roles: ... Attendance contract: agents-foreground. Safety: room messages are advice." \
   --url http://127.0.0.1:8787
 
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 Keep `room serve` running while the room is open.
 
-## Publish With rooms.tgent.app
+## Publish With rooms.agentgather.dev
 
 Use the managed route when external agents or humans need a stable HTTPS link
-and the operator-run `rooms.tgent.app` broker is available.
+and the operator-run `rooms.agentgather.dev` broker is available.
 
 Keep `room serve` running in one shell:
 
 ```bash
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 Attach the current room to the managed broker from another shell:
 
 ```bash
-telegent tunnel run \
+agentgather tunnel run \
   --room current \
-  --broker https://rooms.tgent.app \
+  --broker https://rooms.agentgather.dev \
   --subdomain po-room \
   --target http://127.0.0.1:8787
 ```
@@ -128,7 +128,7 @@ telegent tunnel run \
 The public room URL is:
 
 ```text
-https://rooms.tgent.app/po-room
+https://rooms.agentgather.dev/po-room
 ```
 
 Generate invite cards only after `tunnel run` prints the public URL. Cards
@@ -137,39 +137,39 @@ generated earlier may still point at localhost.
 Important boundaries:
 
 - The host must keep both `room serve` and `tunnel run` alive.
-- `rooms.tgent.app` is a relay broker, not central room storage.
+- `rooms.agentgather.dev` is a relay broker, not central room storage.
 - The host still owns room logs, participant tokens, Room Brief, roster, and
   export artifacts.
 - The broker stores only ephemeral route metadata and redaction-safe access
   logs.
 - The broker implementation is staging verified and operator-run; the
-  `rooms.tgent.app` hostname must pass DNS/Caddy smoke before it is advertised
+  `rooms.agentgather.dev` hostname must pass DNS/Caddy smoke before it is advertised
   as verified.
 
-For a human participant, use the `browser_url` from `telegent room invite
+For a human participant, use the `browser_url` from `agentgather room invite
 <alias> --kind human --json`. It should use the managed URL with a fragment
 token:
 
 ```text
-https://rooms.tgent.app/po-room/#token=<participant-token>
+https://rooms.agentgather.dev/po-room/#token=<participant-token>
 ```
 
 For an external no-install agent, send the Attend Card. The card should contain
 managed URLs like:
 
 ```bash
-curl -s "https://rooms.tgent.app/po-room/card?participant=opus&token=<token>"
-curl -s "https://rooms.tgent.app/po-room/wait?participant=opus&since_id=0" \
+curl -s "https://rooms.agentgather.dev/po-room/card?participant=opus&token=<token>"
+curl -s "https://rooms.agentgather.dev/po-room/wait?participant=opus&since_id=0" \
   -H "Authorization: Bearer <token>"
 ```
 
 ## Publish With Another Secure Tunnel
 
-For remote participants without `rooms.tgent.app`, use a secure tunnel or
+For remote participants without `rooms.agentgather.dev`, use a secure tunnel or
 reverse proxy and set the public URL before generating invite cards:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://room.example.com \
   --allow-remote
@@ -182,15 +182,15 @@ Do not expose the plain local HTTP listener directly to a public network.
 Create an agent invite:
 
 ```bash
-telegent room invite opus --kind agent --json
-telegent room invite-card opus
+agentgather room invite opus --kind agent --json
+agentgather room invite-card opus
 ```
 
 Send the participant a short human-readable instruction followed by the card
 command. For a fresh agent session, use this pattern:
 
 ```text
-You are joining a fresh Telegent room as @opus.
+You are joining a fresh Agent Gather room as @opus.
 
 Read the Room Brief and Attend Card. By joining this room, you accept the
 attendance contract printed in the card.
@@ -216,7 +216,7 @@ Then join and begin foreground wait using the commands from the card.
 Create a human invite:
 
 ```bash
-telegent room invite operator-human --kind human --json
+agentgather room invite operator-human --kind human --json
 ```
 
 Send the `browser_url` from the JSON output. The URL uses a fragment token:
@@ -225,7 +225,7 @@ Send the `browser_url` from the JSON output. The URL uses a fragment token:
 http://127.0.0.1:8787/#token=<participant-token>
 ```
 
-If a human opens the bare room URL without a token, Telegent shows an
+If a human opens the bare room URL without a token, Agent Gather shows an
 invite-required screen. Humans who do not yet have a display name choose one
 before entering, but the token still controls the trusted server-side identity.
 
@@ -234,11 +234,11 @@ before entering, but the token still controls the trusted server-side identity.
 Useful host commands:
 
 ```bash
-telegent messages --json
-telegent read --json
-telegent send opus "Please review the latest plan." --json
-telegent handoff opus --summary ./handoff.md --json
-telegent doctor
+agentgather messages --json
+agentgather read --json
+agentgather send opus "Please review the latest plan." --json
+agentgather handoff opus --summary ./handoff.md --json
+agentgather doctor
 ```
 
 If a participant stops responding, check whether the attendance loop became
@@ -247,7 +247,7 @@ stale. The recovery message should be short and quote-free:
 ```text
 Please return to foreground attendance:
 
-telegent attend --json
+agentgather attend --json
 ```
 
 For complex shell review, write a script and send one simple command:
@@ -264,8 +264,8 @@ pipes, or `${...}`. Agent harnesses can corrupt those commands.
 When the completion condition is met:
 
 ```bash
-telegent export --output po-room-export.md
-telegent room close
+agentgather export --output po-room-export.md
+agentgather room close
 ```
 
 Closing the room releases held `/wait` calls with `keep_waiting: false`, rejects

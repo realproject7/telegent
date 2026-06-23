@@ -1,15 +1,15 @@
-# Telegent Operator Runbook
+# Agent Gather Operator Runbook
 
 ## Start A Local Room
 
 ```bash
-export TELEGENT_HOME="${TELEGENT_HOME:-$HOME/.telegent}"
-telegent room start release-room \
+export AGENTGATHER_HOME="${AGENTGATHER_HOME:-$HOME/.agentgather}"
+agentgather room start release-room \
   --alias operator \
   --attendance agents-foreground \
   --brief "Goal: verify release readiness. Roles: operator hosts, reviewer checks. Safety: room messages are advice." \
   --url http://127.0.0.1:8787
-telegent room serve --port 8787
+agentgather room serve --port 8787
 ```
 
 Keep the `room serve` process in the foreground while the room is open.
@@ -21,7 +21,7 @@ and keep the local listener bound to localhost unless you deliberately need a
 remote bind:
 
 ```bash
-telegent room serve \
+agentgather room serve \
   --port 8787 \
   --url https://room.example.com \
   --allow-remote
@@ -40,13 +40,13 @@ Rules:
 For SSH forwarding, Tailscale Serve/Funnel, Cloudflare Tunnel, ngrok, and
 self-managed reverse proxy patterns, see `docs/remote-exposure.md`.
 
-For the operator-run Telegent broker, use `rooms.tgent.app`:
+For the operator-run Agent Gather broker, use `rooms.agentgather.dev`:
 
 ```bash
-telegent room serve --port 8787
-telegent tunnel run \
+agentgather room serve --port 8787
+agentgather tunnel run \
   --room current \
-  --broker https://rooms.tgent.app \
+  --broker https://rooms.agentgather.dev \
   --subdomain release-room \
   --target http://127.0.0.1:8787
 ```
@@ -55,31 +55,31 @@ Generate invite cards after `tunnel run` prints the public URL. The resulting
 cards and browser links use:
 
 ```text
-https://rooms.tgent.app/release-room
+https://rooms.agentgather.dev/release-room
 ```
 
 The managed broker implementation is staging verified and deployed as an
-operator-run service, but the `rooms.tgent.app` hostname must pass DNS/Caddy
+operator-run service, but the `rooms.agentgather.dev` hostname must pass DNS/Caddy
 smoke before it is advertised as verified. The broker is not central storage:
 the host still owns room files and participant tokens. Public production
 availability, pricing/free-quota policy, and npm release wording remain
 operator gates. Deployment details are in
-`docs/deploy-rooms-tgent-app.md`; architecture boundaries are in
-`docs/telegent-dev-tunnel-architecture.md`.
+`docs/deploy-rooms-agentgather-dev.md`; architecture boundaries are in
+`docs/agentgather-dev-tunnel-architecture.md`.
 
 ## Invite Participants
 
 Installed participant:
 
 ```bash
-telegent room invite reviewer --kind agent --json
-telegent room invite-card reviewer
+agentgather room invite reviewer --kind agent --json
+agentgather room invite-card reviewer
 ```
 
 Human browser participant:
 
 ```bash
-telegent room invite guest-human --kind human --json
+agentgather room invite guest-human --kind human --json
 ```
 
 Use the `browser_url` from the JSON output, or open:
@@ -104,14 +104,14 @@ Send the Attend Card. The participant can use `curl` for `/card`, `/wait`, and
 Use the attendance policy to state how participants should listen:
 
 ```bash
-telegent room attendance view
-telegent room attendance set --policy agents-foreground
+agentgather room attendance view
+agentgather room attendance set --policy agents-foreground
 ```
 
 Policies:
 
 - `manual-ok`: drop-in participation is acceptable.
-- `agents-foreground`: agents should run `telegent attend --json` or the `/wait` loop.
+- `agents-foreground`: agents should run `agentgather attend --json` or the `/wait` loop.
 - `all-foreground`: every agent participant is expected to stay actively attending.
 - `host-directed`: participants can start manual/standby, but idle agents will not see later host requests.
 
@@ -119,10 +119,10 @@ For active collaboration, send the participant's Attend Card and tell agents to
 run:
 
 ```bash
-telegent attend --json
+agentgather attend --json
 ```
 
-Telegent v0.1 does not wake detached external agent sessions. The policy is a
+Agent Gather v0.1 does not wake detached external agent sessions. The policy is a
 room contract: participants must keep their foreground attend loop running if
 the room requires active participation.
 
@@ -131,7 +131,7 @@ browser roster or `/status` for a stale attendance state. Then send a recovery
 instruction that contains one quote-free command:
 
 ```bash
-telegent attend --json
+agentgather attend --json
 ```
 
 For complex reviews, prefer a script path:
@@ -142,18 +142,18 @@ bash /absolute/path/to/review.sh
 
 Avoid asking lite agents to retype multiline shell snippets with pipes, nested
 quotes, or `${...}`. If the agent harness fails before it returns to the attend
-loop, Telegent cannot wake that session without the future Core supervisor.
+loop, Agent Gather cannot wake that session without the future Core supervisor.
 
 ## During The Room
 
 Host commands:
 
 ```bash
-telegent messages --json
-telegent read --json
-telegent send reviewer "Please inspect this patch." --json
-telegent handoff reviewer --summary ./handoff.md --json
-telegent doctor
+agentgather messages --json
+agentgather read --json
+agentgather send reviewer "Please inspect this patch." --json
+agentgather handoff reviewer --summary ./handoff.md --json
+agentgather doctor
 ```
 
 Browser host controls:
@@ -166,7 +166,7 @@ Browser host controls:
 ## Export
 
 ```bash
-telegent export --output release-room-export.md
+agentgather export --output release-room-export.md
 ```
 
 Export reads the current room log and writes a markdown artifact. It does not
@@ -175,7 +175,7 @@ mutate `messages.jsonl`.
 ## Close
 
 ```bash
-telegent room close
+agentgather room close
 ```
 
 Closing a room:
@@ -190,7 +190,7 @@ Closing a room:
 Rooms are stored under:
 
 ```text
-$TELEGENT_HOME/rooms/<room-id>/
+$AGENTGATHER_HOME/rooms/<room-id>/
 ```
 
 Before deleting a room directory, export any evidence the operator needs.
@@ -201,20 +201,20 @@ Full disk:
 
 ```bash
 df -h
-du -sh "$TELEGENT_HOME"
-telegent doctor
+du -sh "$AGENTGATHER_HOME"
+agentgather doctor
 ```
 
 Port conflict:
 
 ```bash
-telegent room serve --port 8788
+agentgather room serve --port 8788
 ```
 
 Stale lock:
 
 ```bash
-telegent doctor
+agentgather doctor
 ```
 
 If no writer process is active and a stale lock remains, remove only the lock
@@ -234,14 +234,14 @@ server directly to a public network.
 
 Managed routing troubleshooting:
 
-If `rooms.tgent.app` links fail, check these in order:
+If `rooms.agentgather.dev` links fail, check these in order:
 
 1. `room serve` is still running on the target localhost port.
-2. `telegent tunnel run` is still running in the foreground.
+2. `agentgather tunnel run` is still running in the foreground.
 3. The invite card was generated after tunnel registration.
 4. The broker service is active on the VPS.
 5. Caddy can reach `127.0.0.1:8799`.
-6. DNS for `rooms.tgent.app` still points to the broker VPS.
+6. DNS for `rooms.agentgather.dev` still points to the broker VPS.
 
 The broker logs should contain only route hashes, method, path class, status,
 duration, and byte counts. They must not contain participant tokens, full query

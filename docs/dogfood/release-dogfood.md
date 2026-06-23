@@ -1,7 +1,7 @@
-# Telegent Release Dogfood
+# Agent Gather Release Dogfood
 
 This script verifies the MVP success statement without external services or a
-central Telegent cloud.
+central Agent Gather cloud.
 
 ## Automated Check
 
@@ -31,15 +31,15 @@ It verifies:
 
 ```bash
 pnpm build
-TELEGENT_HOME="$(mktemp -d)" node dist/src/cli/index.js room start dogfood-room --alias operator --brief "Coordinate the release check." --json
-TELEGENT_HOME="$TELEGENT_HOME" node dist/src/cli/index.js room serve --port 8787
+AGENTGATHER_HOME="$(mktemp -d)" node dist/src/cli/index.js room start dogfood-room --alias operator --brief "Coordinate the release check." --json
+AGENTGATHER_HOME="$AGENTGATHER_HOME" node dist/src/cli/index.js room serve --port 8787
 ```
 
 In another shell, invite a participant:
 
 ```bash
-TELEGENT_HOME="$TELEGENT_HOME" node dist/src/cli/index.js room invite reviewer --json
-TELEGENT_HOME="$TELEGENT_HOME" node dist/src/cli/index.js room invite-card reviewer
+AGENTGATHER_HOME="$AGENTGATHER_HOME" node dist/src/cli/index.js room invite reviewer --json
+AGENTGATHER_HOME="$AGENTGATHER_HOME" node dist/src/cli/index.js room invite-card reviewer
 ```
 
 Open the browser room with a fragment token:

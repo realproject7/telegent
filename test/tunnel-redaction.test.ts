@@ -80,7 +80,7 @@ test("routeHash hides the slug and classifyPath drops query strings", () => {
 test("broker access logs never contain tokens, query strings, message text, or brief bodies", async () => {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-redact-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-redact-test-")),
     stdout,
     stderr: new Capture()
   };

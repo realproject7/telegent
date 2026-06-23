@@ -44,7 +44,7 @@ interface Fixture {
 async function setup(): Promise<Fixture> {
   const stdout = new Capture();
   const context: CliContext = {
-    home: await mkdtemp(path.join(os.tmpdir(), "telegent-fwd-test-")),
+    home: await mkdtemp(path.join(os.tmpdir(), "agentgather-fwd-test-")),
     stdout,
     stderr: new Capture()
   };
@@ -110,7 +110,7 @@ test("broker forwards browser shell and assets", async () => {
     const shell = await fixture.fetchThroughBroker("/");
     const shellText = await shell.text();
     assert.equal(shell.status, 200);
-    assert.match(shellText, /Telegent Room/);
+    assert.match(shellText, /Agent Gather Room/);
     assert.match(shellText, /src="room\.js"/);
 
     const css = await fixture.fetchThroughBroker("/room.css");

@@ -18,7 +18,7 @@ import {
 } from "../src/storage/index.js";
 
 async function makeRoot(): Promise<string> {
-  return mkdtemp(path.join(os.tmpdir(), "telegent-test-"));
+  return mkdtemp(path.join(os.tmpdir(), "agentgather-test-"));
 }
 
 test("createRoom writes the expected room directory layout", async () => {

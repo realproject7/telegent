@@ -1,8 +1,8 @@
-# Deploying the managed tunnel broker (rooms.tgent.app)
+# Deploying the managed tunnel broker (rooms.agentgather.dev)
 
-This runbook covers running the managed tunnel broker as a first-class Telegent
-service behind Caddy at `https://rooms.tgent.app`, the canonical public room
-link for the `tgent` distribution identity. It replaces any ad hoc launch
+This runbook covers running the managed tunnel broker as a first-class Agent Gather
+service behind Caddy at `https://rooms.agentgather.dev`, the canonical public room
+link for the `agentgather` distribution identity. It replaces any ad hoc launch
 script: the broker is started by the built CLI.
 
 > Audience: operators running the broker VPS. After DNS, Caddy, and smoke pass,
@@ -21,7 +21,7 @@ values, headers, or bodies.
 ## The serve command
 
 ```bash
-telegent broker serve --host 127.0.0.1 --port 8799 --public-url https://rooms.tgent.app
+agentgather broker serve --host 127.0.0.1 --port 8799 --public-url https://rooms.agentgather.dev
 ```
 
 - `--host` (default `127.0.0.1`): bind address. Keep it on loopback so only the
@@ -38,20 +38,20 @@ the startup/shutdown lines go to stdout for the journal.
 ## Release architecture
 
 ```text
-DNS  rooms.tgent.app  A/AAAA  ->  broker VPS (telegent-broker-01)
-Caddy  rooms.tgent.app  (HTTPS, automatic TLS)  ->  reverse proxy  ->  127.0.0.1:8799
-telegent broker serve  ->  binds 127.0.0.1:8799
-host laptops  ->  telegent tunnel run --broker https://rooms.tgent.app ...
+DNS  rooms.agentgather.dev  A/AAAA  ->  broker VPS (agentgather-broker-01)
+Caddy  rooms.agentgather.dev  (HTTPS, automatic TLS)  ->  reverse proxy  ->  127.0.0.1:8799
+agentgather broker serve  ->  binds 127.0.0.1:8799
+host laptops  ->  agentgather tunnel run --broker https://rooms.agentgather.dev ...
 ```
 
 - Broker binds to `127.0.0.1:8799` (loopback only).
-- Caddy terminates HTTPS for `rooms.tgent.app` and reverse proxies to the
+- Caddy terminates HTTPS for `rooms.agentgather.dev` and reverse proxies to the
   broker.
-- DNS points `rooms.tgent.app` A/AAAA records at the broker VPS.
+- DNS points `rooms.agentgather.dev` A/AAAA records at the broker VPS.
 
-During migration, `rooms.telegent.dev` may remain as a legacy staging alias, but
+During migration, `rooms.agentgather.dev` may remain as a legacy staging alias, but
 new release docs, invite cards, and public examples should prefer
-`rooms.tgent.app`.
+`rooms.agentgather.dev`.
 
 No secrets are required to run the broker in staging: it does not mint or store
 participant tokens, and host registration is unauthenticated at this stage (see
@@ -62,10 +62,10 @@ the gate note below).
 Hosts attach a local room to this broker with a foreground tunnel session:
 
 ```bash
-telegent room serve --port 8787
-telegent tunnel run \
+agentgather room serve --port 8787
+agentgather tunnel run \
   --room current \
-  --broker https://rooms.tgent.app \
+  --broker https://rooms.agentgather.dev \
   --subdomain my-room \
   --target http://127.0.0.1:8787
 ```
@@ -74,7 +74,7 @@ The host must keep both commands running while the public room is active. Invite
 cards generated after tunnel registration use:
 
 ```text
-https://rooms.tgent.app/my-room
+https://rooms.agentgather.dev/my-room
 ```
 
 The broker only relays participant requests to the host-attended room server.
@@ -82,19 +82,19 @@ It does not own room data, participant identity, or room lifecycle decisions.
 
 ## systemd unit
 
-`/etc/systemd/system/telegent-broker.service`:
+`/etc/systemd/system/agentgather-broker.service`:
 
 ```ini
 [Unit]
-Description=Telegent managed tunnel broker
+Description=Agent Gather managed tunnel broker
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=telegent
-WorkingDirectory=/opt/telegent
-ExecStart=/usr/bin/node /opt/telegent/dist/src/cli/index.js broker serve --host 127.0.0.1 --port 8799 --public-url https://rooms.tgent.app
+User=agentgather
+WorkingDirectory=/opt/agentgather
+ExecStart=/usr/bin/node /opt/agentgather/dist/src/cli/index.js broker serve --host 127.0.0.1 --port 8799 --public-url https://rooms.agentgather.dev
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true
@@ -108,9 +108,9 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now telegent-broker
-sudo systemctl status telegent-broker
-journalctl -u telegent-broker -f
+sudo systemctl enable --now agentgather-broker
+sudo systemctl status agentgather-broker
+journalctl -u agentgather-broker -f
 ```
 
 ## Caddy reverse proxy
@@ -118,7 +118,7 @@ journalctl -u telegent-broker -f
 `/etc/caddy/Caddyfile`:
 
 ```caddy
-rooms.tgent.app {
+rooms.agentgather.dev {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8799
 }
@@ -134,7 +134,7 @@ resolve to the VPS.
 
 ## Staging vs production
 
-Once DNS, Caddy, and the release smoke pass, this setup makes `rooms.tgent.app`
+Once DNS, Caddy, and the release smoke pass, this setup makes `rooms.agentgather.dev`
 **available and staging verified**. It is not yet a fully hardened production
 service. Before broad public launch, an operator must gate on hardening that is
 explicitly out of scope here:
@@ -147,6 +147,6 @@ explicitly out of scope here:
 - Public release wording that explains the operator-run broker boundary.
 - Pricing/free-quota policy before any paid managed tunnel offering.
 
-Until those gates are cleared, describe `rooms.tgent.app` as
+Until those gates are cleared, describe `rooms.agentgather.dev` as
 staging-verified and operator-run, not as a fully self-serve public SaaS
 endpoint.

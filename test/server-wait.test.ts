@@ -10,7 +10,7 @@ import { createRoomHttpServer, participantTokenHash } from "../src/server/index.
 import { WaitHub } from "../src/server/wait.js";
 
 async function makeRoot(): Promise<string> {
-  return mkdtemp(path.join(os.tmpdir(), "telegent-wait-test-"));
+  return mkdtemp(path.join(os.tmpdir(), "agentgather-wait-test-"));
 }
 
 async function startWaitFixture(options: { expiresAt?: Date; removedAgent?: boolean } = {}): Promise<{

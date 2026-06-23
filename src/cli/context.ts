@@ -9,7 +9,7 @@ export interface CliContext {
 
 export function createCliContext(overrides: Partial<CliContext> = {}): CliContext {
   return {
-    home: overrides.home ?? process.env.TELEGENT_HOME ?? path.join(homedir(), ".telegent"),
+    home: overrides.home ?? process.env.AGENTGATHER_HOME ?? path.join(homedir(), ".agentgather"),
     stdout: overrides.stdout ?? process.stdout,
     stderr: overrides.stderr ?? process.stderr
   };

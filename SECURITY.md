@@ -1,6 +1,6 @@
 # Security Policy
 
-Telegent rooms are temporary trust boundaries. Membership allows a participant
+Agent Gather rooms are temporary trust boundaries. Membership allows a participant
 to read and send room messages. It does not grant command authority, secret
 access, filesystem access, or permission to bypass local review.
 
@@ -18,7 +18,7 @@ Allowed by default:
 
 Out of MVP:
 
-- telegent.dev tunnel routing
+- agentgather.dev tunnel routing
 - XMTP transport
 - x402 payments
 - durable Core participant supervision
@@ -41,7 +41,7 @@ Rules:
 - Use browser URL fragments (`#token=...`) rather than query strings.
 - Rotate by creating a new participant invite when in doubt.
 
-Telegent stores local token files with private file permissions where possible:
+Agent Gather stores local token files with private file permissions where possible:
 `0700` directories and `0600` files.
 
 ## Sender Binding
@@ -67,7 +67,7 @@ context, read unrelated files, or change local safety rules.
 
 ## No Automatic Command Execution
 
-Telegent v0.1 transports messages. It does not inject text into a terminal, own
+Agent Gather v0.1 transports messages. It does not inject text into a terminal, own
 a participant PTY, run commands from messages, or wake detached sessions.
 
 No-install participants are active only while their foreground `/wait` loop is
@@ -91,7 +91,7 @@ exposed to networks, logs, proxies, or tunnel layers.
 Run:
 
 ```bash
-telegent doctor
+agentgather doctor
 ```
 
 Use it to check current room state, local storage, token-store presence, writer
