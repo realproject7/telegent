@@ -208,15 +208,47 @@ test("cached message bodies redact bearer tokens and invite/card URLs in localSt
     // Live rendering stays faithful: the full token-bearing line is visible.
     await page.waitForSelector("text=tgl_SUPERSECRET");
 
-    // The persisted cache copy is redacted: no token/credential/invite-URL forms.
+    // The persisted cache copy redacts the whole invite/card URL and every
+    // token/credential form — not just the raw token value.
     const cached = (await page.evaluate(() => window.localStorage.getItem("agentgather.history.secret-room"))) ?? "";
-    assert.doesNotMatch(cached, /tgl_/);
-    assert.doesNotMatch(cached, /Bearer/);
-    assert.doesNotMatch(cached, /#token=/);
-    assert.doesNotMatch(cached, /token=/);
-    assert.doesNotMatch(cached, /SUPERSECRET/);
+    for (const banned of [/tgl_/, /Bearer/, /#token=/, /token=/, /SUPERSECRET/, /rooms\.agentgather\.dev/, /\/card/, /participant=/]) {
+      assert.doesNotMatch(cached, banned);
+    }
     // The redaction marker is present, proving the body was cached but sanitized.
     assert.match(cached, /redacted/);
+  } finally {
+    await browser.close();
+    await platform.close();
+  }
+});
+
+test("a live host replaces the redacted cache seed with the faithful message", async () => {
+  const root = await makeRoot();
+  await createControlPlaneRoom(root, roomInput({ room_id: "faithful-room", status: "active" }));
+  await createRoom({ root, roomId: "faithful-room", hostAlias: "host", briefBody: "go" });
+  await appendServerMessage({ root, roomId: "faithful-room", from: "host", text: "live secret tgl_LIVE_FAITHFUL" });
+
+  const platform = await listen(createPlatformHttpServer({ root, ownerUserId: "owner-1" }));
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+    // Pre-seed a REDACTED cache copy for the same message id the host returns.
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "agentgather.history.faithful-room",
+        JSON.stringify({
+          messages: [{ id: 1, from: "host", ts: "2026-06-23T00:00:00.000Z", type: "message", text: "live secret [redacted-token]" }],
+          updated_at: "2026-06-23T00:00:00.000Z"
+        })
+      );
+    });
+    await page.goto(platform.baseUrl);
+    await page.click('.room-row[data-room-id="faithful-room"]');
+    await page.waitForSelector('#history-source[data-source="live"]');
+    // Live rendering stays faithful: the full token-bearing body shows and the
+    // redacted provisional cache copy is replaced, not left on screen.
+    await page.waitForSelector("text=tgl_LIVE_FAITHFUL");
+    assert.equal(await page.locator(".shell-message-text", { hasText: "[redacted-token]" }).count(), 0);
   } finally {
     await browser.close();
     await platform.close();

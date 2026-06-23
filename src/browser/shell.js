@@ -11,6 +11,7 @@ const state = {
   chatCursor: 0,
   seen: new Set(),
   messages: [],
+  cacheRendered: false,
   pollTimer: null
 };
 
@@ -105,17 +106,17 @@ async function selectRoom(roomId) {
   state.chatCursor = 0;
   state.seen = new Set();
   state.messages = [];
+  state.cacheRendered = false;
   timeline.replaceChildren();
   shell.classList.remove("rooms-open");
   renderRoomList();
   const room = state.rooms.find((entry) => entry.room_id === roomId);
-  // Seed the timeline from this browser's per-room cache so prior history shows
-  // immediately, even before (or without) a live host fetch.
-  for (const message of readCache(roomId)) {
-    state.messages.push(message);
-    state.seen.add(message.id);
-    renderMessage(message);
-  }
+  // Provisionally show this browser's cached copy until live availability is
+  // known. These entries are not added to seen/messages, so a live fetch
+  // replaces them with the faithful host copy rather than being skipped.
+  const cached = readCache(roomId);
+  for (const message of cached) renderMessage(message);
+  state.cacheRendered = cached.length > 0;
   if (room) renderDetail(room);
   if (state.pollTimer !== null) clearInterval(state.pollTimer);
   await loadChat();
@@ -182,6 +183,7 @@ async function loadChat() {
     clearCache(state.activeRoomId);
     state.messages = [];
     state.seen = new Set();
+    state.cacheRendered = false;
     timeline.replaceChildren();
     updateHistorySource("empty", room);
     return;
@@ -200,6 +202,14 @@ async function loadChat() {
     (room.status === "active" || room.status === "idle");
 
   if (hostLive) {
+    // Replace any provisional (redacted) cache render with the faithful live
+    // payload, which on first load returns the full history from since_id=0.
+    if (state.cacheRendered) {
+      timeline.replaceChildren();
+      state.seen = new Set();
+      state.messages = [];
+      state.cacheRendered = false;
+    }
     for (const message of payload.messages || []) {
       if (state.seen.has(message.id)) continue;
       state.seen.add(message.id);
@@ -213,7 +223,7 @@ async function loadChat() {
   }
 
   // Host not live: fall through cache -> exported summary label -> empty.
-  if (state.messages.length > 0) {
+  if (state.cacheRendered || state.messages.length > 0) {
     updateHistorySource("cache", room);
   } else if (exportedAt(state.activeRoomId) !== null) {
     updateHistorySource("exported", room);
@@ -305,6 +315,7 @@ function clearActiveCache() {
   state.messages = [];
   state.seen = new Set();
   state.chatCursor = 0;
+  state.cacheRendered = false;
   timeline.replaceChildren();
   updateHistorySource("empty", state.rooms.find((entry) => entry.room_id === state.activeRoomId));
 }
@@ -326,8 +337,11 @@ function readCache(roomId) {
 // URL. Strips the literal "Bearer", "token=", "#token=", and "tgl_" forms.
 function redactForCache(text) {
   return String(text)
+    // Drop the entire invite/card or tokenized URL, not just the token value, so
+    // no invite-card URL shape survives in the cache.
+    .replace(/https?:\/\/(?=\S*(?:token=|tgl_|\/card))\S+/gi, "[redacted-url]")
     .replace(/Bearer\s+\S+/gi, "[redacted-credential]")
-    .replace(/token=[^\s&#"']+/gi, "[redacted-token]")
+    .replace(/[#?&]?token=[^\s&#"']+/gi, "[redacted-token]")
     .replace(/tgl_[A-Za-z0-9_-]+/g, "[redacted-token]");
 }
 
