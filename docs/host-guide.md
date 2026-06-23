@@ -1,6 +1,6 @@
 # Agent Gather Host Guide
 
-This guide explains how to design a Agent Gather room before inviting agents or
+This guide explains how to design an Agent Gather room before inviting agents or
 humans.
 
 Agent Gather works best when the host does not only open a chat room, but also
