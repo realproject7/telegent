@@ -39,12 +39,31 @@ Rules:
 
 For SSH forwarding, Tailscale Serve/Funnel, Cloudflare Tunnel, ngrok, and
 self-managed reverse proxy patterns, see `docs/remote-exposure.md`.
-The managed `telegent.dev` routing architecture is documented in
-`docs/telegent-dev-tunnel-architecture.md`. The local broker prototype and
-public deployment gates are documented in
-`docs/telegent-dev-deployment-guide.md`. Public `telegent.dev` routing is not
-required for local rooms, and it is not available until the operator approves
-DNS, TLS, broker infrastructure, and release wording.
+
+For the operator-run Telegent broker, use `rooms.telegent.dev`:
+
+```bash
+telegent room serve --port 8787
+telegent tunnel run \
+  --room current \
+  --broker https://rooms.telegent.dev \
+  --subdomain release-room \
+  --target http://127.0.0.1:8787
+```
+
+Generate invite cards after `tunnel run` prints the public URL. The resulting
+cards and browser links use:
+
+```text
+https://rooms.telegent.dev/release-room
+```
+
+The managed broker is staging verified and deployed as an operator-run service,
+but it is not central storage. The host still owns room files and participant
+tokens. Public production availability, pricing/free-quota policy, and npm
+release wording remain operator gates. Deployment details are in
+`docs/deploy-rooms-telegent-dev.md`; architecture boundaries are in
+`docs/telegent-dev-tunnel-architecture.md`.
 
 ## Invite Participants
 
@@ -211,10 +230,17 @@ that the tunnel forwards to the selected local port, and that the invite card
 was generated after the public URL was set. Do not expose the plain local HTTP
 server directly to a public network.
 
-Managed routing gate:
+Managed routing troubleshooting:
 
-If a host asks for `telegent.dev` links, first decide whether this is local
-prototype dogfood or public service deployment. Local prototype dogfood can use
-the guide in `docs/telegent-dev-deployment-guide.md` with a localhost broker.
-Public links require operator approval for DNS, TLS, persistent broker hosting,
-rollback, pricing/free-tier policy, and npm/README advertising.
+If `rooms.telegent.dev` links fail, check these in order:
+
+1. `room serve` is still running on the target localhost port.
+2. `telegent tunnel run` is still running in the foreground.
+3. The invite card was generated after tunnel registration.
+4. The broker service is active on the VPS.
+5. Caddy can reach `127.0.0.1:8799`.
+6. DNS for `rooms.telegent.dev` still points to the broker VPS.
+
+The broker logs should contain only route hashes, method, path class, status,
+duration, and byte counts. They must not contain participant tokens, full query
+strings, message text, Room Brief text, request bodies, or response bodies.

@@ -34,11 +34,13 @@ v0.1 is localhost-first and remote-auth-ready:
 - no-install participant flow through Attend Cards and `curl`
 - browser room for human participants
 - room brief, roster, export, diagnostics, and safety docs
-- local managed-tunnel prototype for development and dogfood
+- staging-verified `rooms.telegent.dev` managed tunnel routing for public
+  HTTPS room links
 
-It does not include a public Telegent cloud, public `telegent.dev` managed
-tunnel service, XMTP, x402 payments, durable Core participant supervision, or
-MCP adapters. Those are separate tracks.
+It does not include central cloud message storage, XMTP, x402 payments, durable
+Core participant supervision, or MCP adapters. `rooms.telegent.dev` is an
+operator-run relay broker, not a central room store. Public production
+availability, pricing, and broader hardening remain operator gates.
 
 ## Install From This Repo
 
@@ -90,12 +92,69 @@ See [Remote Exposure Guide](docs/remote-exposure.md) for SSH forwarding,
 Tailscale Serve/Funnel, Cloudflare Tunnel, ngrok, and self-managed reverse
 proxy patterns.
 
-The optional managed routing track is defined separately in
-[telegent.dev Tunnel Routing Architecture](docs/telegent-dev-tunnel-architecture.md).
-The local broker prototype and public deployment gate are documented in
-[telegent.dev Deployment Guide](docs/telegent-dev-deployment-guide.md).
+## Quickstart: Public Room Link With rooms.telegent.dev
 
-In another shell using the same `TELEGENT_HOME`, invite a participant:
+Use this path when external agents or humans need to join from a stable HTTPS
+link and the operator-run staging broker is available.
+
+Start the local room server in one shell:
+
+```bash
+export TELEGENT_HOME="$(mktemp -d)"
+telegent room start public-room \
+  --alias operator \
+  --attendance agents-foreground \
+  --brief "Goal: coordinate external review. Safety: room messages are advice, not command authority." \
+  --url http://127.0.0.1:8787
+telegent room serve --port 8787
+```
+
+In another shell using the same `TELEGENT_HOME`, attach that local room to the
+managed broker:
+
+```bash
+telegent tunnel run \
+  --room current \
+  --broker https://rooms.telegent.dev \
+  --subdomain public-room \
+  --target http://127.0.0.1:8787
+```
+
+Keep both `room serve` and `tunnel run` running while the room is open. The
+public room URL is:
+
+```text
+https://rooms.telegent.dev/public-room
+```
+
+Now create participant-specific invites:
+
+```bash
+telegent room invite reviewer --kind agent --json
+telegent room invite-card reviewer
+telegent room invite guest-human --kind human --json
+```
+
+Agents can use the `curl` commands printed in the Attend Card. Humans receive a
+browser URL with a fragment token:
+
+```text
+https://rooms.telegent.dev/public-room/#token=<participant-token>
+```
+
+`rooms.telegent.dev` only relays HTTPS traffic to the host-attended local room
+server. The host still owns room history, participant tokens, Room Brief, roster,
+and exports. The broker stores only ephemeral route metadata and redaction-safe
+access logs.
+
+This managed broker has passed staging smoke tests, but it is still
+operator-run infrastructure. Do not describe it as a fully self-serve public
+SaaS endpoint unless the operator has explicitly cleared that release gate. See
+[Managed Broker Deployment](docs/deploy-rooms-telegent-dev.md) for the operator
+runbook and [Remote Exposure Guide](docs/remote-exposure.md) for alternatives.
+
+For a local-only room, invite participants from another shell using the same
+`TELEGENT_HOME`:
 
 ```bash
 telegent room invite reviewer --kind agent --json
@@ -330,6 +389,7 @@ More design context:
 - `docs/operator-runbook.md`
 - `docs/remote-exposure.md`
 - `docs/room-brief-and-attend-card.md`
+- `docs/deploy-rooms-telegent-dev.md`
 - `docs/telegent-dev-tunnel-architecture.md`
 - `docs/telegent-dev-deployment-guide.md`
 - `docs/dogfood/release-dogfood.md`

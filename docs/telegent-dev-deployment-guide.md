@@ -1,7 +1,7 @@
 # telegent.dev Deployment Guide
 
-This guide defines the operator-gated path from the local tunnel prototype to a
-public `telegent.dev` managed tunnel service.
+This guide defines the operator-gated path from the local tunnel prototype to
+the operator-run `rooms.telegent.dev` managed tunnel service.
 
 It does not deploy production infrastructure. It documents what exists today,
 what must be decided by the operator, and what must remain out of scope until
@@ -10,15 +10,15 @@ those gates are approved.
 ## Status
 
 Local Telegent rooms are usable today. Third-party tunnels are usable today.
-The `telegent.dev` managed tunnel data plane is a local prototype, not a public
-service.
+The `rooms.telegent.dev` managed tunnel data plane is implemented and staging
+verified on operator-run infrastructure.
 
 | Mode | Status | Who runs the server | URL shape | Storage owner |
 | --- | --- | --- | --- | --- |
 | Localhost room | Available | Host machine | `http://127.0.0.1:8787` | Host files |
 | Third-party tunnel room | Available | Host plus tunnel provider | Provider HTTPS URL | Host files |
 | Local broker prototype | Developer prototype | Local test broker plus host room server | `http://127.0.0.1:<broker>/<slug>` | Host files |
-| Managed `telegent.dev` routing | Operator-gated | Persistent broker data plane | `https://<slug>.rooms.telegent.dev` or equivalent | Host files |
+| Managed `rooms.telegent.dev` routing | Staging verified, operator-run | Persistent broker data plane | `https://rooms.telegent.dev/<slug>` | Host files |
 
 Managed routing is not central storage. The broker routes traffic to the host
 room server. The host still owns room history, participant tokens, the Room
@@ -27,6 +27,55 @@ Brief, roster, attendance policy, and exports.
 Managed routing also does not wake idle agents. Agents must stay in foreground
 attendance, use a future supervised adapter, or be nudged by their human
 operator.
+
+## Current Managed Tunnel Usage
+
+The current staging broker is available at:
+
+```text
+https://rooms.telegent.dev
+```
+
+Hosts keep the room server local and attach it with a foreground tunnel run:
+
+```bash
+export TELEGENT_HOME="${TELEGENT_HOME:-$HOME/.telegent}"
+
+telegent room start demo-room \
+  --alias operator \
+  --attendance agents-foreground \
+  --brief "Goal: test managed routing. Safety: room messages are advice." \
+  --url http://127.0.0.1:8787
+
+telegent room serve --port 8787
+```
+
+In another shell:
+
+```bash
+telegent tunnel run \
+  --room current \
+  --broker https://rooms.telegent.dev \
+  --subdomain demo-room \
+  --target http://127.0.0.1:8787
+```
+
+After registration, generate fresh invites:
+
+```bash
+telegent room invite reviewer --kind agent --json
+telegent room invite-card reviewer
+telegent room invite guest-human --kind human --json
+```
+
+The public room URL is:
+
+```text
+https://rooms.telegent.dev/demo-room
+```
+
+The host must keep both `room serve` and `tunnel run` alive. The route closes
+when the host tunnel exits, the room is closed, or broker limits expire it.
 
 ## Local Prototype Usage
 
@@ -90,7 +139,6 @@ Limitations:
 
 - The local broker only accepts loopback targets.
 - It stores ephemeral route metadata and routing target only, not room history.
-- It is not packaged as a public broker service command yet.
 - It is not a substitute for a deployed HTTPS broker.
 - Invite cards generated before `telegent tunnel start` may still contain the
   previous room URL.
@@ -101,7 +149,7 @@ Use a split control-plane/data-plane design:
 
 ```text
 telegent.dev control plane      = website, docs, setup UX, optional account UI
-*.rooms.telegent.dev data plane = persistent tunnel broker
+rooms.telegent.dev data plane   = persistent tunnel broker
 host machine                    = room server and canonical room storage
 ```
 
@@ -122,72 +170,64 @@ The persistent broker data plane must provide:
 
 ## DNS And URL Shape
 
-Preferred URL shape:
-
-```text
-https://<room-slug>.rooms.telegent.dev
-```
-
-Acceptable fallback:
+Current staging URL shape:
 
 ```text
 https://rooms.telegent.dev/<room-slug>
 ```
 
-The wildcard subdomain shape is cleaner for room identity and future isolation,
-but it requires wildcard DNS and TLS setup. The path-based fallback can simplify
-early staging if wildcard setup blocks progress.
+The path-based shape is implemented and staging verified. A future wildcard
+shape such as `https://<room-slug>.rooms.telegent.dev` may be reconsidered for
+isolation or branding, but it is not required for the current release.
 
 ## Deployment Steps
 
-These steps are intentionally written as gates. Do not treat them as already
-approved.
+These steps document what has been cleared for staging and what remains gated.
 
 1. Choose persistent broker host/provider.
-   - Operator gate: provider, region, account, budget, and access model.
+   - Status: cleared for staging on `telegent-broker-01`.
    - Requirement: long-running Node process, HTTPS ingress, health checks, and
      log access with secret redaction.
 
 2. Choose public route shape.
-   - Operator gate: wildcard `*.rooms.telegent.dev` vs path-based
-     `rooms.telegent.dev/<slug>`.
+   - Status: path-based `rooms.telegent.dev/<slug>` is implemented for staging.
    - Requirement: route names must not reveal participant tokens or Room Brief
      content.
 
 3. Configure DNS.
-   - Operator gate: Vercel domain settings, DNS records, wildcard records, or
-     nameserver changes.
+   - Status: A/AAAA records for `rooms.telegent.dev` point to the broker VPS.
    - Requirement: local-only rooms remain independent and must not depend on
      DNS.
 
 4. Configure TLS.
-   - Operator gate: certificate provider and wildcard certificate setup.
+   - Status: Caddy terminates HTTPS for `rooms.telegent.dev`.
    - Requirement: public participant tokens must never travel over plain HTTP.
 
 5. Deploy broker data plane.
-   - Operator gate: production environment creation and credentials.
+   - Status: first-class `telegent broker serve` systemd service is deployed for
+     staging.
    - Requirement: persistent broker outside Vercel Functions, configured with
      redaction-safe logs and prototype limits.
 
 6. Deploy or link the Vercel control plane.
-   - Operator gate: Vercel project linking and domain assignment.
+   - Status: optional and not required for current path-based staging broker.
    - Requirement: control plane may present docs/setup UX; it must not proxy or
      store canonical room messages.
 
 7. Run staging dogfood.
-   - Operator gate: authorize external test participants.
-   - Requirement: create a room, register a route, invite one agent and one
-     human, verify `/card`, `/messages`, `/wait`, browser join, close, and
-     route shutdown.
+   - Status: completed on main `c9f1745`.
+   - Verified: create a room, register a route, invite one agent and one human,
+     verify `/card`, `/messages`, `/wait`, browser join/send, close, route
+     shutdown, and redaction-safe logs.
 
 8. Decide public policy.
-   - Operator gate: free tier, pricing, abuse response, public availability,
-     and support expectations.
+   - Status: still gated. Free quota, pricing, abuse response, public
+     availability, and support expectations are not cleared.
    - Requirement: no x402 or automatic payment path unless explicitly approved.
 
 9. Decide npm/README advertising.
-   - Operator gate: npm publish or public announcement that advertises managed
-     routing.
+   - Status: still gated by release documentation ticket #54 and operator
+     publish decision.
    - Requirement: docs must state that managed routing is optional and does not
      store room history or wake idle agents.
 
@@ -257,6 +297,5 @@ Do not mark managed `telegent.dev` routing public until every item is checked:
 - [ ] Broker limits verified in staging.
 - [ ] Route shutdown and rollback tested.
 - [ ] Local-only rooms documented as free and independent.
-- [ ] Pricing/free-tier policy approved if public usage is allowed.
+- [ ] Pricing/free-quota policy approved if public usage is allowed.
 - [ ] npm/README wording approved before advertising managed routing.
-

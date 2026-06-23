@@ -104,8 +104,68 @@ telegent room serve --port 8787
 
 Keep `room serve` running while the room is open.
 
-For remote participants, use a secure tunnel or reverse proxy and set the
-public URL before generating invite cards:
+## Publish With rooms.telegent.dev
+
+Use the managed route when external agents or humans need a stable HTTPS link
+and the operator-run `rooms.telegent.dev` broker is available.
+
+Keep `room serve` running in one shell:
+
+```bash
+telegent room serve --port 8787
+```
+
+Attach the current room to the managed broker from another shell:
+
+```bash
+telegent tunnel run \
+  --room current \
+  --broker https://rooms.telegent.dev \
+  --subdomain po-room \
+  --target http://127.0.0.1:8787
+```
+
+The public room URL is:
+
+```text
+https://rooms.telegent.dev/po-room
+```
+
+Generate invite cards only after `tunnel run` prints the public URL. Cards
+generated earlier may still point at localhost.
+
+Important boundaries:
+
+- The host must keep both `room serve` and `tunnel run` alive.
+- `rooms.telegent.dev` is a relay broker, not central room storage.
+- The host still owns room logs, participant tokens, Room Brief, roster, and
+  export artifacts.
+- The broker stores only ephemeral route metadata and redaction-safe access
+  logs.
+- The current broker is staging verified and operator-run; production public
+  availability remains an operator gate.
+
+For a human participant, use the `browser_url` from `telegent room invite
+<alias> --kind human --json`. It should use the managed URL with a fragment
+token:
+
+```text
+https://rooms.telegent.dev/po-room/#token=<participant-token>
+```
+
+For an external no-install agent, send the Attend Card. The card should contain
+managed URLs like:
+
+```bash
+curl -s "https://rooms.telegent.dev/po-room/card?participant=opus&token=<token>"
+curl -s "https://rooms.telegent.dev/po-room/wait?participant=opus&since_id=0" \
+  -H "Authorization: Bearer <token>"
+```
+
+## Publish With Another Secure Tunnel
+
+For remote participants without `rooms.telegent.dev`, use a secure tunnel or
+reverse proxy and set the public URL before generating invite cards:
 
 ```bash
 telegent room serve \

@@ -4,8 +4,9 @@ This runbook covers running the managed tunnel broker as a first-class Telegent
 service behind Caddy at `https://rooms.telegent.dev`. It replaces any ad hoc
 launch script: the broker is started by the built CLI.
 
-> Audience: operators running the staging broker VPS. This is a staging setup,
-> not a hardened production launch (see [Staging vs production](#staging-vs-production)).
+> Audience: operators running the broker VPS. This setup is staging verified,
+> but it is not a fully hardened production launch (see
+> [Staging vs production](#staging-vs-production)).
 
 ## What the broker stores
 
@@ -50,6 +51,29 @@ host laptops  ->  telegent tunnel run --broker https://rooms.telegent.dev ...
 No secrets are required to run the broker in staging: it does not mint or store
 participant tokens, and host registration is unauthenticated at this stage (see
 the gate note below).
+
+## Host usage
+
+Hosts attach a local room to this broker with a foreground tunnel session:
+
+```bash
+telegent room serve --port 8787
+telegent tunnel run \
+  --room current \
+  --broker https://rooms.telegent.dev \
+  --subdomain my-room \
+  --target http://127.0.0.1:8787
+```
+
+The host must keep both commands running while the public room is active. Invite
+cards generated after tunnel registration use:
+
+```text
+https://rooms.telegent.dev/my-room
+```
+
+The broker only relays participant requests to the host-attended room server.
+It does not own room data, participant identity, or room lifecycle decisions.
 
 ## systemd unit
 
@@ -105,15 +129,18 @@ resolve to the VPS.
 
 ## Staging vs production
 
-This setup makes `rooms.telegent.dev` **available for staging**. It is not yet
-production-ready. Before any public launch, an operator must gate on hardening
-that is explicitly out of scope here:
+This setup makes `rooms.telegent.dev` **available and staging verified**. It is
+not yet a fully hardened production service. Before broad public launch, an
+operator must gate on hardening that is explicitly out of scope here:
 
 - Authenticated host registration on the `/_host/*` control endpoints (today the
   broker restricts forwarding targets but does not authenticate registration).
 - Per-tenant isolation and abuse review beyond the prototype broker limits.
 - Durable route accounting and on-call/runbook coverage for the VPS.
 - A reviewed production rollout and smoke test (owned by the rollout agent).
+- Public release wording that explains the operator-run broker boundary.
+- Pricing/free-quota policy before any paid managed tunnel offering.
 
-Until those gates are cleared, treat `rooms.telegent.dev` as staging only and do
-not advertise it as a stable public endpoint.
+Until those gates are cleared, describe `rooms.telegent.dev` as
+staging-verified and operator-run, not as a fully self-serve public SaaS
+endpoint.
