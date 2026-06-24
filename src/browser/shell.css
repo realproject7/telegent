@@ -1231,6 +1231,11 @@ body {
   background: var(--accent-hover);
 }
 
+.join-btn.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .join-note {
   margin: 0;
   color: var(--faint);

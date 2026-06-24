@@ -77,6 +77,11 @@ async function init() {
   clearCacheButton.addEventListener("click", clearActiveCache);
   wireCreateRoom();
   wireInviteCards();
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!createOverlay.hidden) closeCreateRoom();
+    if (!inviteOverlay.hidden) closeInviteCards();
+  });
   await loadRooms();
   shell.dataset.state = "ready";
   setInterval(() => void loadRooms(), 5000);
@@ -471,10 +476,18 @@ function updateCreateCommand() {
   const slug = roomSlug(createName.value);
   const pressed = createAttendance.querySelector('.seg[aria-pressed="true"]');
   const policy = pressed?.dataset.policy || "agents-foreground";
-  const goal = createGoal.value.trim().replace(/\s+/g, " ").replace(/"/g, "'");
+  const goal = createGoal.value.trim().replace(/\s+/g, " ");
   let command = `agentgather room start ${slug} --attendance ${policy}`;
-  if (goal.length > 0) command += ` --brief "${goal}"`;
+  if (goal.length > 0) command += ` --brief ${shellSingleQuote(goal)}`;
   createCommand.textContent = command;
+}
+
+// POSIX single-quote a value so it is safe to paste into a shell. The text is
+// wrapped in single quotes and any embedded single quote is escaped as '\'' , so
+// $VAR, $(...), backticks, and backslashes in the goal never expand or execute
+// when the host pastes the command.
+function shellSingleQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
 // Convert a typed room name into the safe slug the CLI accepts, or a visible
@@ -585,16 +598,20 @@ function buildHumanCard(room, entry, hostAlias, humans, agents) {
   const join = document.createElement("a");
   join.className = "join-btn";
   join.textContent = "› Open room in browser";
+  const note = document.createElement("p");
+  note.className = "join-note";
   if (room.route_url) {
     join.href = room.route_url;
     join.target = "_blank";
     join.rel = "noreferrer";
+    note.textContent = "no install · opens in the browser";
+  } else {
+    // No public route yet: keep the action inert rather than a dead link.
+    join.classList.add("disabled");
+    join.setAttribute("aria-disabled", "true");
+    note.textContent = "route not published yet — the host shares the browser link with agentgather room invite";
   }
   card.body.append(join);
-
-  const note = document.createElement("p");
-  note.className = "join-note";
-  note.textContent = "no install · opens in the browser";
   card.body.append(note);
 
   card.body.append(subhead("tips"));

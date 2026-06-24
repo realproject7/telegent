@@ -230,12 +230,39 @@ test("create-room shell composes the host CLI command and keeps submit disabled"
     await page.fill("#create-goal", 'check the "rounding" edge case');
     const command = (await page.locator("#create-command").textContent()) ?? "";
     assert.match(command, /agentgather room start h402-review --attendance all-foreground/);
-    // Quotes in the goal are neutralized so the command stays copy-pasteable.
-    assert.match(command, /--brief "check the 'rounding' edge case"/);
+    // The goal is single-quoted so it stays copy-pasteable and literal.
+    assert.match(command, /--brief 'check the "rounding" edge case'/);
 
     // No fake API: the create button is disabled and creation is via the CLI.
     assert.equal(await page.locator(".primary-btn[disabled]").count(), 1);
     await page.waitForSelector("text=Creating a room from the browser isn't available yet");
+  } finally {
+    await browser.close();
+    await platform.close();
+  }
+});
+
+test("create-room command shell-quotes the goal so nothing expands on paste", async () => {
+  const root = await makeRoot();
+  await createControlPlaneRoom(root, roomInput({ room_id: "alpha", title: "Alpha", status: "active" }));
+  const platform = await listen(createPlatformHttpServer({ root, ownerUserId: "owner-1" }));
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 820 } });
+    await page.goto(platform.baseUrl);
+    await page.waitForSelector('.platform-shell[data-view="rooms"]');
+    await page.click("#new-room");
+    await page.waitForSelector("#create-overlay:not([hidden])");
+
+    // A goal full of shell metacharacters must be wrapped in a single-quoted
+    // string with embedded single quotes escaped as '\'' — so $(...), backticks,
+    // $VAR, and backslashes are inert literal text when pasted.
+    await page.fill("#create-goal", "pwn $(whoami) `id` $HOME \\ it's");
+    const command = (await page.locator("#create-command").textContent()) ?? "";
+    assert.ok(
+      command.includes("--brief 'pwn $(whoami) `id` $HOME \\ it'\\''s'"),
+      `command did not safely single-quote the goal: ${command}`
+    );
   } finally {
     await browser.close();
     await platform.close();
