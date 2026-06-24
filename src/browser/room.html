@@ -98,10 +98,22 @@
             <div class="rail-title">participants</div>
           <ul id="participant-list"></ul>
           </section>
-          <div class="rail-actions">
-            <button id="export-button" type="button">Export</button>
-            <button id="close-button" type="button">Close Room</button>
-          </div>
+          <section class="rail-section host-controls" id="host-controls" hidden>
+            <div class="rail-title">host controls</div>
+            <div class="rail-state" role="group" aria-label="Room state">
+              <span class="rs" id="rs-active">active</span>
+              <span class="rs" data-disabled="true" title="Platform-managed — not available for a local host room.">idle</span>
+              <span class="rs" data-disabled="true" title="Platform-managed — not available for a local host room.">paused</span>
+              <button id="close-button" class="rs rs-close" type="button" title="Permanently close this room.">close</button>
+            </div>
+            <div class="rail-ctl">
+              <button id="invite-button" class="rail-btn" type="button">invite</button>
+              <button id="rail-broadcast" class="rail-btn" type="button" title="Compose an untargeted announcement everyone sees.">broadcast</button>
+              <button id="export-button" class="rail-btn" type="button">export</button>
+              <button id="tickets-button" class="rail-btn" type="button" disabled title="No follow-up data available in the local host room.">tickets</button>
+            </div>
+            <div id="invite-note" class="rail-note" hidden></div>
+          </section>
         </aside>
       </section>
       </div>

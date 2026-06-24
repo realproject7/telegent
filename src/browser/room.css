@@ -517,7 +517,6 @@ h1::before {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-width: 1000px;
   display: grid;
   gap: 4px;
 }
@@ -745,11 +744,14 @@ pre {
   background: transparent;
 }
 
+/* deliberate two-pane section: a clearly bounded rail that fills its column even
+   when the chat is sparse, with the host controls pinned to the bottom (#112). */
 .roster {
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   border-left: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.012);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.012));
 }
 
 .rail-section {
@@ -758,7 +760,16 @@ pre {
 }
 
 .participants-section {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
+}
+
+.host-controls {
+  flex: 0 0 auto;
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .rail-title {
@@ -876,17 +887,85 @@ pre {
   color: var(--warn);
 }
 
-.rail-actions {
+/* host controls (#116): room-state segment + action grid, host-only */
+.rail-state {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 14px 15px;
-  border-top: 1px solid var(--border-soft);
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: 9px;
 }
 
-.rail-actions button {
-  min-height: 36px;
+.rail-state .rs {
+  padding: 6px 0;
+  border: 0;
+  border-right: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.rail-state .rs:last-child {
+  border-right: 0;
+}
+
+.rail-state .rs.on {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.rail-state .rs[data-disabled="true"] {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.rail-state .rs-close {
+  cursor: pointer;
+}
+
+.rail-state .rs-close.on {
+  background: var(--danger);
+  color: #2a0d0d;
+}
+
+.rail-ctl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.rail-btn {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--chip);
   color: var(--text-soft);
+  font-size: var(--fs-sm);
+}
+
+.rail-btn:hover:not(:disabled) {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.rail-btn:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.rail-note {
+  margin-top: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-code);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .composer {
@@ -1371,10 +1450,6 @@ button:disabled {
 
   .room-shell.roster-open .roster {
     display: block;
-  }
-
-  .rail-actions {
-    grid-template-columns: 1fr;
   }
 
   .composer {

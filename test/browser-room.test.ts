@@ -591,3 +591,36 @@ async function postMessage(fixture: { baseUrl: string }, token: string, text: st
   });
   assert.equal(response.status, 201);
 }
+
+test("v5 batch surfaces: code-block header/copy, grouped rail, host controls, last-message KV (#117/#115/#116/#120)", async () => {
+  const fixture = await startFixture();
+  const browser = await chromium.launch();
+  try {
+    await postMessage(fixture, fixture.hostToken, "guard:\n```ts\nconst ok = true;\n```");
+    const page = await browser.newPage({ viewport: { width: 1180, height: 820 } });
+    await page.goto(`${fixture.baseUrl}/#token=${fixture.hostToken}`);
+    await page.waitForSelector("text=Ship the browser room safely.");
+
+    // #117 — fenced block renders a header with language label + copy affordance.
+    await page.waitForSelector(".code-block .code-head .code-dot");
+    assert.equal(await page.textContent(".code-block .code-head .code-lang"), "ts");
+    await page.waitForSelector(".code-block .code-copy");
+
+    // #115 — participants grouped into humans/agents; last-message KV is populated.
+    await page.waitForSelector(".rail-group");
+    const groups = await page.$$eval(".rail-group", (els) => els.map((e) => e.textContent || ""));
+    assert.ok(groups.some((g) => g.includes("humans")));
+    assert.ok(groups.some((g) => g.includes("agents")));
+    assert.notEqual((await page.textContent("#roster-last-message"))?.trim(), "—");
+
+    // #116 — host sees the control section; idle/pause are disabled (platform-managed),
+    // tickets is disabled (no fabricated data), and the state segment shows "active".
+    assert.equal(await page.isHidden("#host-controls"), false);
+    assert.ok(await page.getAttribute("#rs-active", "class").then((c) => (c || "").includes("on")));
+    assert.equal(await page.$$eval(".rail-state .rs[data-disabled='true']", (e) => e.length), 2);
+    assert.equal(await page.isDisabled("#tickets-button"), true);
+  } finally {
+    await browser.close();
+    await fixture.close();
+  }
+});
