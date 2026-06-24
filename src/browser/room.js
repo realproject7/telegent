@@ -550,6 +550,7 @@ function renderSafeMarkdown(parent, markdown, options = {}) {
       continue;
     }
     if (line.startsWith("```")) {
+      const lang = line.slice(3).trim();
       const codeLines = [];
       cursor += 1;
       while (cursor < lines.length && !lines[cursor].startsWith("```")) {
@@ -557,7 +558,7 @@ function renderSafeMarkdown(parent, markdown, options = {}) {
         cursor += 1;
       }
       if (cursor < lines.length) cursor += 1;
-      appendCodeBlock(parent, codeLines.join("\n"));
+      appendCodeBlock(parent, codeLines.join("\n"), lang);
       continue;
     }
     const heading = /^(#{1,3})\s+(.+)$/.exec(line);
@@ -635,12 +636,51 @@ function stripMarkdownBlockPrefix(line) {
     .trim();
 }
 
-function appendCodeBlock(parent, text) {
+function appendCodeBlock(parent, text, lang) {
+  const body = text.trim();
+  const block = document.createElement("div");
+  block.className = "code-block";
+
+  const head = document.createElement("div");
+  head.className = "code-head";
+  const dot = document.createElement("span");
+  dot.className = "code-dot";
+  dot.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.className = "code-lang";
+  label.textContent = lang || "code";
+  head.append(dot, label);
+
+  // Copy affordance — only when the clipboard API is available, so it never
+  // shows a button that silently fails. Copies the raw code body only.
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "code-copy";
+    copy.textContent = "copy";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(body);
+        copy.textContent = "copied";
+        copy.classList.add("done");
+        setTimeout(() => {
+          copy.textContent = "copy";
+          copy.classList.remove("done");
+        }, 1400);
+      } catch {
+        copy.textContent = "copy failed";
+        setTimeout(() => (copy.textContent = "copy"), 1400);
+      }
+    });
+    head.append(copy);
+  }
+
   const pre = document.createElement("pre");
   const code = document.createElement("code");
-  code.textContent = text.trim();
+  code.textContent = body;
   pre.append(code);
-  parent.append(pre);
+  block.append(head, pre);
+  parent.append(block);
 }
 
 function appendInlineMarkdown(parent, text) {
