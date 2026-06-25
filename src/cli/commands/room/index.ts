@@ -3,12 +3,17 @@ import path from "node:path";
 import { promisify } from "node:util";
 import {
   addChannel,
+  addForumComment,
   appendServerMessage,
   closeRoom,
   createBoardroom,
+  createForumPost,
   createRoom,
+  listForumPosts,
   readBoardroom,
   readChannelView,
+  readForumPost,
+  setForumPostStatus,
   writeChannelCursor,
   readBrief,
   readParticipants,
@@ -24,6 +29,7 @@ import {
   normalizeBaseUrl,
   parseAttendancePolicy,
   parseChannelType,
+  parseForumStatus,
   roomUrl,
   type AttendancePolicy
 } from "../../../protocol/index.js";
@@ -49,6 +55,11 @@ export async function runRoomCommand(argv: string[], context: CliContext): Promi
   if (subcommand === "create-boardroom") return roomCreateBoardroom(rest, context);
   if (subcommand === "channel-create") return roomChannelCreate(rest, context);
   if (subcommand === "channel-read") return roomChannelRead(rest, context);
+  if (subcommand === "forum-post") return roomForumPost(rest, context);
+  if (subcommand === "forum-comment") return roomForumComment(rest, context);
+  if (subcommand === "forum-list") return roomForumList(rest, context);
+  if (subcommand === "forum-read") return roomForumRead(rest, context);
+  if (subcommand === "forum-status") return roomForumStatus(rest, context);
   if (subcommand === "boardroom") return roomBoardroom(rest, context);
   if (subcommand === "brief") return roomBrief(rest, context);
   if (subcommand === "attendance") return roomAttendance(rest, context);
@@ -176,6 +187,85 @@ async function roomChannelRead(argv: string[], context: CliContext): Promise<num
     { ok: true, room: current.roomId, ...out },
     `#${channelId} (${out.type}): ${out.messages.length} messages, ${out.unread} unread (last read id ${out.lastReadId})\n`
   );
+}
+
+// Forum core (T6): host-owned, file-backed posts/comments on a T3 `forum`
+// channel. These operate on the host's local files (no tokens in output).
+async function roomForumPost(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const channelId = args.positional[0];
+  if (channelId === undefined) throw new Error("forum channel id is required");
+  const title = flagString(args, "title");
+  if (title === undefined) throw new Error("--title is required");
+  const current = await readCurrent(context.home);
+  const input: { author: string; title: string; body: string; id?: string; status?: ReturnType<typeof parseForumStatus>; tags?: string[] } = {
+    author: flagString(args, "author") ?? current.alias,
+    title,
+    body: flagString(args, "body") ?? ""
+  };
+  const id = flagString(args, "id");
+  if (id !== undefined) input.id = id;
+  const status = flagString(args, "status");
+  if (status !== undefined) input.status = parseForumStatus(status);
+  const tags = flagString(args, "tags");
+  if (tags !== undefined) input.tags = tags.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+  const post = await createForumPost(context.home, current.roomId, channelId, input);
+  return emit(context, flagBoolean(args, "json"), { ok: true, post }, `forum post ${post.id} created in #${channelId} (${post.status})\n`);
+}
+
+async function roomForumComment(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const channelId = args.positional[0];
+  const postId = args.positional[1];
+  if (channelId === undefined || postId === undefined) throw new Error("forum-comment requires <channel> <post>");
+  const body = flagString(args, "body") ?? args.positional.slice(2).join(" ");
+  if (body.trim().length === 0) throw new Error("comment body is required");
+  const current = await readCurrent(context.home);
+  const comment = await addForumComment(context.home, current.roomId, channelId, postId, {
+    author: flagString(args, "author") ?? current.alias,
+    body
+  });
+  return emit(context, flagBoolean(args, "json"), { ok: true, comment }, `comment ${comment.id} added to ${postId}\n`);
+}
+
+async function roomForumList(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const channelId = args.positional[0];
+  if (channelId === undefined) throw new Error("forum channel id is required");
+  const current = await readCurrent(context.home);
+  const posts = await listForumPosts(context.home, current.roomId, channelId);
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, posts },
+    `${posts.map((p) => `${p.id} [${p.status}] ${p.title}`).join("\n")}\n`
+  );
+}
+
+async function roomForumRead(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const channelId = args.positional[0];
+  const postId = args.positional[1];
+  if (channelId === undefined || postId === undefined) throw new Error("forum-read requires <channel> <post>");
+  const current = await readCurrent(context.home);
+  const thread = await readForumPost(context.home, current.roomId, channelId, postId);
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, ...thread },
+    `${thread.post.title} [${thread.post.status}]\n${thread.post.body}\n--- ${thread.comments.length} comments ---\n`
+  );
+}
+
+async function roomForumStatus(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const channelId = args.positional[0];
+  const postId = args.positional[1];
+  if (channelId === undefined || postId === undefined) throw new Error("forum-status requires <channel> <post>");
+  const status = parseForumStatus(flagString(args, "status") ?? args.positional[2] ?? "");
+  const current = await readCurrent(context.home);
+  const post = await setForumPostStatus(context.home, current.roomId, channelId, postId, status);
+  return emit(context, flagBoolean(args, "json"), { ok: true, post }, `forum post ${post.id} → ${post.status}\n`);
 }
 
 // View the current boardroom (channels + lifecycle). Carries no tokens.
