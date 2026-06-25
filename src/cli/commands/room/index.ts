@@ -428,6 +428,7 @@ async function roomLaunch(argv: string[], context: CliContext): Promise<number> 
   const logPath = flagString(args, "log") ?? path.join(context.home, "rooms", current.roomId, "serve.log");
   const tmuxAvailable = await hasCommand("tmux");
   const runtimeReachable = await probeRuntime(publicUrl);
+  const cli = resolveHostCli();
   const plan = buildRuntimeLaunchPlan({
     home: context.home,
     roomId: current.roomId,
@@ -436,7 +437,9 @@ async function roomLaunch(argv: string[], context: CliContext): Promise<number> 
     logPath,
     sessionName,
     tmuxAvailable,
-    runtimeReachable
+    runtimeReachable,
+    cliInvocation: cli.invocation,
+    cliResolved: cli.resolved
   });
 
   let launched = false;
@@ -473,8 +476,18 @@ async function roomRuntimeStatus(argv: string[], context: CliContext): Promise<n
   );
 }
 
+// Resolve the host's own CLI invocation (node + entry script) so generated
+// commands relaunch the same CLI/build the host runs, not a global `agentgather`.
+function resolveHostCli(): { invocation: string; resolved: boolean } {
+  const entry = process.argv[1];
+  if (typeof entry === "string" && entry.length > 0) {
+    return { invocation: `${shellSingleQuote(process.execPath)} ${shellSingleQuote(entry)}`, resolved: true };
+  }
+  return { invocation: "agentgather", resolved: false };
+}
+
 function renderLaunchText(plan: RuntimeLaunchPlan, launched: boolean): string {
-  const lines = [`runtime: ${plan.runtimeState}`, plan.ownership, ""];
+  const lines = [`runtime: ${plan.runtimeState}`, `cli: ${plan.cliSource}`, plan.ownership, ""];
   if (plan.strategy === "detached-tmux") {
     lines.push(launched ? `Launched detached session "${plan.sessionName}".` : "Run this to launch a detached runtime:");
     if (!launched && plan.detachedCommand !== null) lines.push(`  ${plan.detachedCommand}`);

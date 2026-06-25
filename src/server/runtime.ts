@@ -24,6 +24,14 @@ export interface RuntimeLaunchInput {
   sessionName: string;
   tmuxAvailable: boolean;
   runtimeReachable: boolean;
+  // The host's actual CLI invocation (shell-ready, e.g. `'/usr/bin/node' '/…/cli.js'`)
+  // so a detached/manual relaunch runs the SAME CLI/build the host runs — not a
+  // possibly-different global `agentgather` that could serve stale assets.
+  cliInvocation: string;
+  // false when the host CLI entry could not be resolved (fell back to a bare
+  // `agentgather`); the plan then surfaces the CLI source so the operator can
+  // verify they relaunch the host's own CLI.
+  cliResolved: boolean;
 }
 
 export interface RuntimeLaunchPlan {
@@ -37,6 +45,10 @@ export interface RuntimeLaunchPlan {
   detachedCommand: string | null;
   stopCommand: string;
   statusCommand: string;
+  // The CLI source the generated commands invoke, and whether it was resolved
+  // from the host process (vs a best-effort fallback the operator should verify).
+  cliSource: string;
+  cliResolved: boolean;
   // Human-readable note on who keeps the runtime alive.
   ownership: string;
 }
@@ -75,9 +87,14 @@ export function buildRuntimeLaunchPlan(input: RuntimeLaunchInput): RuntimeLaunch
   }
   // Never embed a credential-bearing URL in a generated command/status surface.
   const publicUrl = sanitizePublicUrl(input.publicUrl);
+  // Relaunch the host's OWN CLI (resolved from the host process), so a detached
+  // or manual restart can't pick up a different/global build serving stale assets.
   const serveCommand =
-    `AGENTGATHER_HOME=${shellSingleQuote(input.home)} agentgather room serve` +
+    `AGENTGATHER_HOME=${shellSingleQuote(input.home)} ${input.cliInvocation} room serve` +
     ` --port ${input.port} --url ${shellSingleQuote(publicUrl)}`;
+  const cliWarning = input.cliResolved
+    ? ""
+    : ` Could not resolve the host CLI source — verify these commands use the host's own agentgather (shown as: ${input.cliInvocation}).`;
   const strategy: RuntimeStrategy = input.tmuxAvailable ? "detached-tmux" : "manual-operator";
   const runtimeState = resolveRuntimeState(input.tmuxAvailable, input.runtimeReachable);
   // A token-free liveness probe: the room shell needs no auth, so any HTTP
@@ -97,9 +114,12 @@ export function buildRuntimeLaunchPlan(input: RuntimeLaunchInput): RuntimeLaunch
       detachedCommand,
       stopCommand: `tmux kill-session -t ${shellSingleQuote(input.sessionName)}`,
       statusCommand: `tmux has-session -t ${shellSingleQuote(input.sessionName)} && ${httpProbe}`,
+      cliSource: input.cliInvocation,
+      cliResolved: input.cliResolved,
       ownership:
         `A detached tmux session "${input.sessionName}" keeps ${input.roomId} live, ` +
-        "so the agent session does not hold the server in the foreground. Stop it with the stop command."
+        "so the agent session does not hold the server in the foreground. Stop it with the stop command." +
+        cliWarning
     };
   }
 
@@ -112,8 +132,11 @@ export function buildRuntimeLaunchPlan(input: RuntimeLaunchInput): RuntimeLaunch
     detachedCommand: null,
     stopCommand: "Press Ctrl-C in the operator terminal running `room serve`.",
     statusCommand: httpProbe,
+    cliSource: input.cliInvocation,
+    cliResolved: input.cliResolved,
     ownership:
       `No detachable runner (tmux) was found, so a human operator must run the serve command ` +
-      `for ${input.roomId} and keep that terminal open to keep the room live.`
+      `for ${input.roomId} and keep that terminal open to keep the room live.` +
+      cliWarning
   };
 }

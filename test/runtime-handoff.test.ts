@@ -8,13 +8,17 @@ import { buildRuntimeLaunchPlan, resolveRuntimeState, sanitizePublicUrl } from "
 import type { CliContext } from "../src/cli/context.js";
 import { runRoomCommand } from "../src/cli/commands/room/index.js";
 
+const HOST_CLI_PATH = "/host/app/dist/src/cli/index.js";
+const HOST_CLI = `'/usr/local/bin/node' '${HOST_CLI_PATH}'`;
 const baseInput = {
   home: "/home/agent/.agentgather",
   roomId: "demo",
   port: 8787,
   publicUrl: "http://127.0.0.1:8787",
   logPath: "/home/agent/.agentgather/rooms/demo/serve.log",
-  sessionName: "agentgather-demo"
+  sessionName: "agentgather-demo",
+  cliInvocation: HOST_CLI,
+  cliResolved: true
 };
 
 test("runtime state classification: running / unreachable / manual-run-required", () => {
@@ -43,7 +47,8 @@ test("manual-operator plan: copy-pastable serve command, no tmux, human owns the
   assert.equal(plan.strategy, "manual-operator");
   assert.equal(plan.runtimeState, "manual-run-required");
   assert.equal(plan.detachedCommand, null);
-  assert.match(plan.serveCommand, /agentgather room serve/);
+  assert.ok(plan.serveCommand.includes(HOST_CLI), "serveCommand must use the host CLI invocation");
+  assert.match(plan.serveCommand, / room serve --port /);
   assert.match(plan.ownership, /human operator must run/);
 });
 
@@ -78,6 +83,32 @@ test("a token-bearing invite URL is stripped from every generated command (no le
   }
   // sanitize is idempotent and leaves credential-free URLs untouched.
   assert.equal(sanitizePublicUrl("http://127.0.0.1:8787"), "http://127.0.0.1:8787/");
+});
+
+test("generated commands invoke the host's resolved CLI, not a bare global agentgather", () => {
+  for (const tmux of [true, false]) {
+    const plan = buildRuntimeLaunchPlan({ ...baseInput, tmuxAvailable: tmux, runtimeReachable: false });
+    assert.ok(plan.serveCommand.includes(HOST_CLI), "serveCommand must use the host CLI invocation");
+    assert.equal(plan.serveCommand.includes("agentgather room serve"), false, "must not hardcode a bare agentgather");
+    assert.equal(plan.cliSource, HOST_CLI);
+    assert.equal(plan.cliResolved, true);
+    // In the detached command the serve string is re-quoted, so check the
+    // quote-free CLI path survives rather than the fully-quoted invocation.
+    if (plan.detachedCommand !== null) assert.ok(plan.detachedCommand.includes(HOST_CLI_PATH));
+  }
+});
+
+test("an unresolved CLI source falls back but is surfaced in the plan", () => {
+  const plan = buildRuntimeLaunchPlan({
+    ...baseInput,
+    cliInvocation: "agentgather",
+    cliResolved: false,
+    tmuxAvailable: false,
+    runtimeReachable: false
+  });
+  assert.equal(plan.cliResolved, false);
+  assert.equal(plan.cliSource, "agentgather");
+  assert.match(plan.ownership, /Could not resolve the host CLI source/);
 });
 
 test("port validation rejects out-of-range values", () => {
@@ -119,12 +150,18 @@ test("room launch (plan mode) prints a token-free runtime plan and does not spaw
     serveCommand: string;
     statusCommand: string;
     stopCommand: string;
+    cliSource: string;
+    cliResolved: boolean;
   }>();
   assert.equal(out.launched, false);
   assert.ok(["runtime-running", "runtime-unreachable", "manual-run-required"].includes(out.runtimeState));
   assert.match(out.serveCommand, /AGENTGATHER_HOME=/);
   assert.equal(out.serveCommand.includes("tgl_"), false);
   assert.equal(stdout.text().includes("tgl_"), false);
+  // Commands invoke the host's resolved CLI (node + entry script), not a bare global agentgather.
+  assert.equal(out.cliResolved, true);
+  assert.ok(out.serveCommand.includes(process.execPath), "serveCommand must use the host node binary");
+  assert.equal(out.serveCommand.includes("agentgather room serve"), false);
 });
 
 test("room launch --url with a token fragment never echoes the token", async () => {
