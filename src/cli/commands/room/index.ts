@@ -101,11 +101,15 @@ async function roomCreateBoardroom(argv: string[], context: CliContext): Promise
   const boardroomName = flagString(args, "name");
   if (boardroomName !== undefined) boardroomOptions.name = boardroomName;
   const boardroom = await createBoardroom(context.home, roomId, boardroomOptions, now);
+  // The host token is persisted to local state above; it is deliberately NOT
+  // echoed here so the create response never carries a raw token (#144 gate).
+  // Use `room invite` to mint shareable participant credentials.
   return emit(
     context,
     flagBoolean(args, "json"),
-    { ok: true, room: roomId, alias, token, baseUrl, boardroom },
-    `Boardroom ${roomId} created with channels: ${boardroom.channels.map((c) => `#${c.id} (${c.type})`).join(", ")}\n`
+    { ok: true, room: roomId, alias, baseUrl, boardroom },
+    `Boardroom ${roomId} created with channels: ${boardroom.channels.map((c) => `#${c.id} (${c.type})`).join(", ")}\n` +
+      "Host credentials saved locally. Use `room invite <name>` to invite participants.\n"
   );
 }
 

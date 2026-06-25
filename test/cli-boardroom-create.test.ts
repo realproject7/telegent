@@ -6,8 +6,10 @@ import { Writable } from "node:stream";
 import test from "node:test";
 import type { CliContext } from "../src/cli/context.js";
 import { runRoomCommand } from "../src/cli/commands/room/index.js";
+import { readFile } from "node:fs/promises";
 import { readBoardroom, readParticipants, roomPaths } from "../src/storage/index.js";
 import { participantTokenHash } from "../src/server/index.js";
+import { tokensPath } from "../src/cli/state.js";
 import { findNameOwnerConflict, type Boardroom } from "../src/protocol/index.js";
 
 class Capture extends Writable {
@@ -40,8 +42,12 @@ test("room create-boardroom creates #general (chat) + #design-forum (forum) choo
     ["create-boardroom", "demo", "--name", "Demo", "--channels", "general:chat,design-forum:forum", "--json"],
     context
   );
-  const out = stdout.json<{ ok: true; room: string; boardroom: Boardroom }>();
+  const text = stdout.text();
+  // #144 gate: the create response must not echo a raw token.
+  assert.equal(text.includes("tgl_"), false, "create-boardroom output must not leak a raw token");
+  const out = JSON.parse(text) as { ok: true; room: string; boardroom: Boardroom } & { token?: unknown };
   assert.equal(out.room, "demo");
+  assert.equal(out.token, undefined, "create-boardroom JSON must not include a token field");
   assert.equal(out.boardroom.legacy, false);
   assert.equal(out.boardroom.name, "Demo");
   assert.deepEqual(
@@ -53,6 +59,10 @@ test("room create-boardroom creates #general (chat) + #design-forum (forum) choo
   const persisted = await readBoardroom(context.home, "demo");
   assert.equal(persisted.channels.length, 2);
   assert.equal(persisted.channels.find((c) => c.id === "design-forum")?.type, "forum");
+
+  // The host token is still persisted to local state (just not echoed).
+  const store = JSON.parse(await readFile(tokensPath(context.home, "demo"), "utf8")) as { tokens: Record<string, string> };
+  assert.ok(store.tokens.host?.startsWith("tgl_"), "host token must be saved to local state");
 });
 
 test("room channel-create adds a typed channel and rejects a duplicate", async () => {
