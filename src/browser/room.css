@@ -7,15 +7,12 @@ body {
     var(--bg-page);
 }
 
-/* full-viewport web layout (not a centered Mac-style window) */
+/* full-viewport web layout (not a centered Mac-style window).
+   Frame shell (size/overflow/background) comes from the .k-frame primitive. */
 .room-shell {
-  width: 100%;
-  height: 100vh;
   display: grid;
   grid-template-rows: 50px auto minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
-  overflow: hidden;
-  background: var(--bg-term);
 }
 
 .topbar {
@@ -79,6 +76,7 @@ h1::before {
   font-size: var(--fs-sm);
 }
 
+/* pill skin (border/radius/background) comes from the .k-pill primitive */
 .topbar-meta span,
 .icon-button {
   min-height: 26px;
@@ -86,9 +84,6 @@ h1::before {
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--chip);
   color: var(--muted-strong);
 }
 
@@ -234,15 +229,13 @@ h1::before {
   color: var(--accent);
 }
 
+/* card skin (border/radius/background) comes from the .k-card primitive */
 .auth-error {
   z-index: 2;
   align-self: start;
   width: min(470px, calc(100% - 32px));
   margin: 18px auto 0;
   padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--bg-term);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
 }
 
@@ -331,15 +324,13 @@ h1::before {
   display: none;
 }
 
+/* card skin (border/radius/background) comes from the .k-card primitive */
 .brief-card {
   width: min(680px, 100%);
   max-height: calc(100% - 18px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--bg-term);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.62);
 }
 
@@ -472,9 +463,8 @@ h1::before {
   border-top: 1px solid var(--border-soft);
 }
 
+/* scroll behaviour (min-height/overflow) comes from the .k-pane primitive */
 .timeline-wrap {
-  min-height: 0;
-  overflow: auto;
   padding: 16px 18px 6px;
   scroll-behavior: smooth;
 }
@@ -745,15 +735,9 @@ pre {
 }
 
 /* deliberate two-pane section: a clearly bounded rail that fills its column even
-   when the chat is sparse, with the host controls pinned to the bottom (#112). */
-.roster {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.012));
-}
-
+   when the chat is sparse, with the host controls pinned to the bottom (#112).
+   The rail shell (flex column + left border + wash) comes from the .k-rail
+   primitive; only room-specific rail content lives below. */
 .rail-section {
   padding: 14px 15px;
   border-bottom: 1px solid var(--border-soft);
@@ -862,12 +846,10 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* pill skin (border/radius/background) comes from the .k-pill primitive */
 .participant-status {
   width: fit-content;
   padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--chip);
   color: var(--muted);
   font-size: var(--fs-xs);
   line-height: 1.2;
@@ -968,6 +950,7 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* composer skin (border/radius/background) comes from the .k-composer primitive */
 .composer {
   position: relative;
   display: grid;
@@ -976,9 +959,6 @@ pre {
   gap: 10px;
   margin: 8px 14px 14px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--bg-input);
 }
 
 .composer[hidden] {
