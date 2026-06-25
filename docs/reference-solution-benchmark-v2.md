@@ -1,16 +1,16 @@
-# Agent Gather V2 Benchmark: Join.cloud
+# Agent Gather V2 Benchmark: Reference Solution
 
 Date: 2026-06-25
 Issue: #137
-Benchmark target: https://join.cloud/docs
-Test room: `ag-v2-bench-1782362125621`
-Room UUID: `3e0e304b-85c1-4887-956c-219e8702387d`
+Benchmark target: reference agent-room collaboration service docs and public HTTP surface.
+Test room: redacted reference room.
+Room UUID: redacted reference room id.
 
 ## Executive Summary
 
-Join.cloud validates several Agent Gather V2 assumptions: room-scoped participant tokens, reconnect by token, unread/history APIs, SSE as a lightweight realtime fallback, and explicit room limits are useful primitives for agent collaboration. However, Join.cloud is still primarily agent-room infrastructure, not a human-plus-agent project boardroom product. It centralizes room messages and git storage, exposes room UUIDs as bearer tokens, and its public docs/browser/git paths showed rough edges during the test. Agent Gather should adopt the clean protocol ideas, adapt room lifecycle and quota semantics to the host-owned/local-first model, and avoid copying central message-body storage as the canonical source.
+The reference solution validates several Agent Gather V2 assumptions: room-scoped participant tokens, reconnect by token, unread/history APIs, SSE as a lightweight realtime fallback, and explicit room limits are useful primitives for agent collaboration. However, the reference solution is still primarily agent-room infrastructure, not a human-plus-agent project boardroom product. It centralizes room messages and git storage, exposes room UUIDs as bearer tokens, and its public docs/browser/git paths showed rough edges during the test. Agent Gather should adopt the clean protocol ideas, adapt room lifecycle and quota semantics to the host-owned/local-first model, and avoid copying central message-body storage as the canonical source.
 
-Recommendation: T3 should proceed, with adjustments. Add boardroom/channel identity and history APIs inspired by Join.cloud, but keep Agent Gather's host-owned SSOT and platform metadata/content separation.
+Recommendation: T3 should proceed, with adjustments. Add boardroom/channel identity and history APIs inspired by the reference solution, but keep Agent Gather's host-owned SSOT and platform metadata/content separation.
 
 ## What Was Tested
 
@@ -35,7 +35,7 @@ Validated successfully:
 Observed issues/limits:
 
 - A2A docs require careful mapping: `roomId` maps to `message.contextId`, not `metadata.roomId`.
-- Browser path `https://join.cloud/<room-name>` returned docs text during this test, not a usable human room UI.
+- Browser room path returned docs text during this test, not a usable human room UI.
 - Git Smart HTTP returned `Git backend unavailable` for the created room.
 - `/.well-known/agent-card.json` returned localhost URLs in `url` and `documentationUrl`, which is likely a deployment metadata bug.
 - `GET /api/tiers` returned `paymentEnabled:false`; `POST /api/upgrade/:roomId/basic` succeeded without payment and upgraded the room, so x402 was inspectable only as documented behavior, not as a live paid flow.
@@ -55,7 +55,7 @@ Agent Gather implication:
 
 ### 2. Unread is more useful than pure history polling
 
-Join.cloud has both `message.history` and `message.unread`. `message.unread` returns messages since that participant's last read position and marks them read.
+The reference solution has both `message.history` and `message.unread`. `message.unread` returns messages since that participant's last read position and marks them read.
 
 Agent Gather implication:
 
@@ -75,7 +75,7 @@ Agent Gather implication:
 
 ### 4. A2A push requires the participant to expose an endpoint
 
-Join.cloud supports `agentEndpoint` on join, where the server POSTs events to the agent. This is a clean protocol for custom agents, but it only works when the participant can expose an HTTP endpoint reachable by the server.
+The reference solution supports `agentEndpoint` on join, where the server POSTs events to the agent. This is a clean protocol for custom agents, but it only works when the participant can expose an HTTP endpoint reachable by the server.
 
 Agent Gather implication:
 
@@ -85,7 +85,7 @@ Agent Gather implication:
 
 ### 5. Central room history is convenient but conflicts with Agent Gather's privacy bet
 
-Join.cloud stores message history centrally with rolling limits and room TTL. This is ergonomic but not the Agent Gather promise.
+The reference solution stores message history centrally with rolling limits and room TTL. This is ergonomic but not the Agent Gather promise.
 
 Agent Gather implication:
 
@@ -95,7 +95,7 @@ Agent Gather implication:
 
 ### 6. Explicit limits and lifecycle vocabulary are useful
 
-Join.cloud's free tier has concrete limits: rolling message history, git storage, idle TTL, and plan expiration/grace behavior.
+The reference solution's free tier has concrete limits: rolling message history, git storage, idle TTL, and plan expiration/grace behavior.
 
 Agent Gather implication:
 
@@ -105,7 +105,7 @@ Agent Gather implication:
 
 ### 7. Git-backed collaboration is adjacent, not core
 
-Join.cloud positions git as the file collaboration channel. The live `git ls-remote` test returned `Git backend unavailable`, so the implementation could not be validated in this run.
+The reference solution positions git as the file collaboration channel. The live git probe returned a backend unavailable response, so the implementation could not be validated in this run.
 
 Agent Gather implication:
 
@@ -113,9 +113,9 @@ Agent Gather implication:
 - Keep optional export/worktree integration as a later enhancement.
 - For development workflows, GitHub/QuadWork remains the real implementation system; Agent Gather is the human/agent coordination boardroom.
 
-### 8. Browser human UX is Join.cloud's weak spot from this test
+### 8. Browser human UX is the reference solution's weak spot from this test
 
-The docs claim browsers can view rooms at `https://join.cloud/<room-name>`, but the tested path returned the docs content instead of a room UI.
+The docs claim browsers can view rooms directly, but the tested path returned docs content instead of a room UI.
 
 Agent Gather implication:
 
