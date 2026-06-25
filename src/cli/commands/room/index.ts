@@ -1,3 +1,6 @@
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { promisify } from "node:util";
 import {
   addChannel,
   appendServerMessage,
@@ -23,7 +26,15 @@ import {
   type AttendancePolicy
 } from "../../../protocol/index.js";
 import { createToken } from "../../../auth/index.js";
-import { createRoomHttpServer, participantTokenHash, renderInviteCard } from "../../../server/index.js";
+import {
+  buildRuntimeLaunchPlan,
+  createRoomHttpServer,
+  participantTokenHash,
+  renderInviteCard,
+  resolveRuntimeState,
+  shellSingleQuote,
+  type RuntimeLaunchPlan
+} from "../../../server/index.js";
 import { readPublicBaseUrl } from "../../../tunnel/index.js";
 import { parseArgs, flagBoolean, flagString } from "../../args.js";
 import type { CliContext } from "../../context.js";
@@ -38,6 +49,8 @@ export async function runRoomCommand(argv: string[], context: CliContext): Promi
   if (subcommand === "brief") return roomBrief(rest, context);
   if (subcommand === "attendance") return roomAttendance(rest, context);
   if (subcommand === "serve") return roomServe(rest, context);
+  if (subcommand === "launch") return roomLaunch(rest, context);
+  if (subcommand === "runtime-status") return roomRuntimeStatus(rest, context);
   if (subcommand === "invite") return roomInvite(rest, context);
   if (subcommand === "invite-card") return roomInviteCard(rest, context);
   if (subcommand === "join") return roomJoin(rest, context);
@@ -394,6 +407,105 @@ async function roomDashboard(argv: string[], context: CliContext): Promise<numbe
   const args = parseArgs(argv);
   const current = await readCurrent(context.home);
   return emit(context, flagBoolean(args, "json"), { ok: true, url: current.baseUrl }, `Dashboard: ${current.baseUrl}\n`);
+}
+
+// Host runtime launch handoff (T7A): build a launch plan for keeping the room
+// live. With a detachable runner (tmux) `--detach` launches `room serve` in a
+// detached session so the agent host never holds the server in the foreground;
+// otherwise it prints a copy-pastable command block for a human operator. The
+// plan carries no tokens.
+async function roomLaunch(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const current = await readCurrent(context.home);
+  const currentUrl = new URL(current.baseUrl);
+  const port = Number(flagString(args, "port") ?? (currentUrl.port || "8787"));
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error("port must be an integer between 1 and 65535");
+  }
+  const publicUrl = normalizeBaseUrl(flagString(args, "url") ?? current.baseUrl);
+  const sessionName = flagString(args, "session") ?? `agentgather-${current.roomId}`;
+  const logPath = flagString(args, "log") ?? path.join(context.home, "rooms", current.roomId, "serve.log");
+  const tmuxAvailable = await hasCommand("tmux");
+  const runtimeReachable = await probeRuntime(publicUrl);
+  const plan = buildRuntimeLaunchPlan({
+    home: context.home,
+    roomId: current.roomId,
+    port,
+    publicUrl,
+    logPath,
+    sessionName,
+    tmuxAvailable,
+    runtimeReachable
+  });
+
+  let launched = false;
+  if (flagBoolean(args, "detach")) {
+    if (!tmuxAvailable || plan.detachedCommand === null) {
+      throw new Error("--detach requires a detachable runner (tmux); none found — run the printed command manually");
+    }
+    await execFileAsync("tmux", [
+      "new-session",
+      "-d",
+      "-s",
+      sessionName,
+      `${plan.serveCommand} >> ${shellSingleQuote(logPath)} 2>&1`
+    ]);
+    launched = true;
+  }
+
+  return emit(context, flagBoolean(args, "json"), { ok: true, room: current.roomId, launched, ...plan }, renderLaunchText(plan, launched));
+}
+
+// Surface host runtime state only: runtime-running / runtime-unreachable /
+// manual-run-required (token-free).
+async function roomRuntimeStatus(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const current = await readCurrent(context.home);
+  const publicUrl = normalizeBaseUrl(flagString(args, "url") ?? current.baseUrl);
+  const [tmuxAvailable, runtimeReachable] = await Promise.all([hasCommand("tmux"), probeRuntime(publicUrl)]);
+  const runtimeState = resolveRuntimeState(tmuxAvailable, runtimeReachable);
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, room: current.roomId, runtime_state: runtimeState, tmux_available: tmuxAvailable },
+    `runtime: ${runtimeState}\n`
+  );
+}
+
+function renderLaunchText(plan: RuntimeLaunchPlan, launched: boolean): string {
+  const lines = [`runtime: ${plan.runtimeState}`, plan.ownership, ""];
+  if (plan.strategy === "detached-tmux") {
+    lines.push(launched ? `Launched detached session "${plan.sessionName}".` : "Run this to launch a detached runtime:");
+    if (!launched && plan.detachedCommand !== null) lines.push(`  ${plan.detachedCommand}`);
+    lines.push(`Log:    ${plan.logPath}`, `Status: ${plan.statusCommand}`, `Stop:   ${plan.stopCommand}`);
+  } else {
+    lines.push("No detachable runner found — a human operator should run:", `  ${plan.serveCommand}`, `Status: ${plan.statusCommand}`, `Stop:   ${plan.stopCommand}`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+const execFileAsync = promisify(execFile);
+
+async function hasCommand(command: string): Promise<boolean> {
+  try {
+    await execFileAsync(command, ["-V"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function probeRuntime(publicUrl: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 800);
+  try {
+    await fetch(new URL("/", publicUrl), { signal: controller.signal });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function roomServe(argv: string[], context: CliContext): Promise<number> {

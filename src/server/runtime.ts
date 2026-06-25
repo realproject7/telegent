@@ -1,0 +1,108 @@
+// Host-runtime launch handoff (#143 / T7A).
+//
+// A boardroom is only live while its host runtime (`room serve`) runs. Holding
+// that server in an agent's foreground task is a poor default, so this module
+// builds a launch *plan*: when a detachable runner (tmux) is available it
+// produces a detached `room serve` command (+ stop/status); otherwise it hands a
+// copy-pastable command block to a human operator. It also classifies runtime
+// state for status surfaces.
+//
+// This is deliberately smaller than managed/core supervision: no durable
+// supervision, no remote wake, no managed lifecycle. The plan is pure and
+// carries NO participant tokens or invite URLs — only host, port, public URL,
+// log path, and a session name.
+
+export type RuntimeState = "runtime-running" | "runtime-unreachable" | "manual-run-required";
+export type RuntimeStrategy = "detached-tmux" | "manual-operator";
+
+export interface RuntimeLaunchInput {
+  home: string;
+  roomId: string;
+  port: number;
+  publicUrl: string;
+  logPath: string;
+  sessionName: string;
+  tmuxAvailable: boolean;
+  runtimeReachable: boolean;
+}
+
+export interface RuntimeLaunchPlan {
+  strategy: RuntimeStrategy;
+  runtimeState: RuntimeState;
+  sessionName: string;
+  logPath: string;
+  // `AGENTGATHER_HOME=… agentgather room serve --port … --url …` — no token.
+  serveCommand: string;
+  // The detached launch (tmux) when available, else null.
+  detachedCommand: string | null;
+  stopCommand: string;
+  statusCommand: string;
+  // Human-readable note on who keeps the runtime alive.
+  ownership: string;
+}
+
+// Canonical POSIX single-quoting: wrap in single quotes, escaping any embedded
+// single quote as '\''. Keeps paths/URLs inert as one shell argument.
+export function shellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+export function resolveRuntimeState(tmuxAvailable: boolean, runtimeReachable: boolean): RuntimeState {
+  if (runtimeReachable) return "runtime-running";
+  return tmuxAvailable ? "runtime-unreachable" : "manual-run-required";
+}
+
+export function buildRuntimeLaunchPlan(input: RuntimeLaunchInput): RuntimeLaunchPlan {
+  if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65_535) {
+    throw new Error("port must be an integer between 1 and 65535");
+  }
+  const serveCommand =
+    `AGENTGATHER_HOME=${shellSingleQuote(input.home)} agentgather room serve` +
+    ` --port ${input.port} --url ${shellSingleQuote(input.publicUrl)}`;
+  const strategy: RuntimeStrategy = input.tmuxAvailable ? "detached-tmux" : "manual-operator";
+  const runtimeState = resolveRuntimeState(input.tmuxAvailable, input.runtimeReachable);
+  // A token-free liveness probe: the room shell at "/" needs no auth, so any
+  // HTTP response means the runtime is up.
+  const httpProbe = `curl -sS -o /dev/null -w '%{http_code}\\n' ${shellSingleQuote(rootUrl(input.publicUrl))}`;
+
+  if (input.tmuxAvailable) {
+    const detachedCommand =
+      `tmux new-session -d -s ${shellSingleQuote(input.sessionName)} ` +
+      shellSingleQuote(`${serveCommand} >> ${shellSingleQuote(input.logPath)} 2>&1`);
+    return {
+      strategy,
+      runtimeState,
+      sessionName: input.sessionName,
+      logPath: input.logPath,
+      serveCommand,
+      detachedCommand,
+      stopCommand: `tmux kill-session -t ${shellSingleQuote(input.sessionName)}`,
+      statusCommand: `tmux has-session -t ${shellSingleQuote(input.sessionName)} && ${httpProbe}`,
+      ownership:
+        `A detached tmux session "${input.sessionName}" keeps ${input.roomId} live, ` +
+        "so the agent session does not hold the server in the foreground. Stop it with the stop command."
+    };
+  }
+
+  return {
+    strategy,
+    runtimeState,
+    sessionName: input.sessionName,
+    logPath: input.logPath,
+    serveCommand,
+    detachedCommand: null,
+    stopCommand: "Press Ctrl-C in the operator terminal running `room serve`.",
+    statusCommand: httpProbe,
+    ownership:
+      `No detachable runner (tmux) was found, so a human operator must run the serve command ` +
+      `for ${input.roomId} and keep that terminal open to keep the room live.`
+  };
+}
+
+function rootUrl(publicUrl: string): string {
+  try {
+    return new URL("/", publicUrl).toString();
+  } catch {
+    return publicUrl;
+  }
+}
