@@ -133,6 +133,9 @@ export async function addForumComment(
   assertSafeSlug(postId, "forum post id");
   assertSafeSlug(input.author, "forum comment author");
   assertForumBody(input.body);
+  // Enforce the forum-channel boundary on the comment-append path too (matching
+  // create/read/list), before any read or append.
+  await assertForumChannel(root, roomId, channelId);
   const paths = roomPaths(root, roomId);
   return withWriterLock(paths.lock, async () => {
     // Post must exist and satisfy the frozen schema (also confirms the path).

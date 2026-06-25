@@ -102,6 +102,9 @@ test("forum endpoints reject a non-forum channel and a missing post", async () =
     assert.equal(create.status, 400); // general is a chat channel, not a forum
     const missing = await fetch(`${fx.baseUrl}/forum/post?channel=design-forum&post=nope`, authed(fx.token));
     assert.equal(missing.status, 404);
+    // commenting on a non-forum channel is rejected on the append path too
+    const comment = await fetch(`${fx.baseUrl}/forum/comment`, authed(fx.token, { channel: "general", post: "rfc-1", body: "nope" }));
+    assert.equal(comment.status, 400);
   } finally {
     await fx.close();
   }
