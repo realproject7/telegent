@@ -21,6 +21,7 @@ import type { AttendancePolicy, Participant, RoomBrief } from "../protocol/index
 import {
   assertSafeSlug,
   describeAttendancePolicy,
+  findNameOwnerConflict,
   normalizeBaseUrl,
   parseAttendancePolicy,
   renderAgentInstructions,
@@ -219,12 +220,13 @@ async function postProfile(context: RequestContext): Promise<void> {
   }
   const displayName = parseDisplayName(body.display_name);
   const participants = await readParticipants(roomPaths(context.options.root, context.options.roomId));
-  const duplicate = participants.find(
-    (participant) =>
-      participant.alias !== auth.participant.alias &&
-      (participant.display_name ?? participant.alias).toLowerCase() === displayName.toLowerCase()
-  );
-  if (duplicate !== undefined) {
+  // Name ownership (T7): a name is reclaimable only by its owning token; a
+  // duplicate name presented under a different token is rejected.
+  const conflict = findNameOwnerConflict(participants, displayName, {
+    alias: auth.participant.alias,
+    ...(auth.participant.token_hash === undefined ? {} : { tokenHash: auth.participant.token_hash })
+  });
+  if (conflict !== undefined) {
     throw new HttpError(409, "display_name_taken", "display name is already in use");
   }
   const updated: Participant = {

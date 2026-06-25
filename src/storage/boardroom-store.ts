@@ -11,9 +11,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   type Boardroom,
+  type Channel,
   type ChannelReadCursor,
   DEFAULT_CHANNEL_ID,
   assertValidBoardroom,
+  defaultChannel,
   deriveDefaultBoardroom
 } from "../protocol/boardroom.js";
 import { assertSafeSlug, parsePositiveInteger } from "../protocol/validation.js";
@@ -26,32 +28,77 @@ import { writeSecureFile } from "./secure-fs.js";
 // otherwise a runtime projection of the legacy bare room (single #general chat
 // channel). The legacy projection is never written back.
 export async function readBoardroom(root: string, roomId: string): Promise<Boardroom> {
-  const paths = roomPaths(root, roomId);
-  try {
-    const persisted = await readJson<Boardroom>(paths.boardroom);
-    return { ...persisted, legacy: false };
-  } catch (error) {
-    if (!isNotFoundError(error)) throw error;
-    const state = await readRoomState(paths);
-    return deriveDefaultBoardroom({
-      id: state.id,
-      createdAt: state.createdAt,
-      updatedAt: state.updatedAt
-    });
-  }
+  return readBoardroomUnlocked(roomPaths(root, roomId));
 }
 
 // Persist boardroom + channel metadata (host-owned, atomic, under the writer
 // lock). Validates channel ids/types/lifecycle and rejects duplicate channels.
 export async function writeBoardroom(root: string, roomId: string, boardroom: Boardroom): Promise<Boardroom> {
   assertSafeSlug(roomId, "room id");
-  const persisted: Boardroom = { ...boardroom, id: roomId, legacy: false };
-  assertValidBoardroom(persisted);
+  const paths = roomPaths(root, roomId);
+  return withWriterLock(paths.lock, async () => persistBoardroom(paths, { ...boardroom, id: roomId }));
+}
+
+// Host create-boardroom flow (T7): create/overwrite the boardroom metadata for a
+// room, defaulting to a single #general chat channel when none are given.
+export async function createBoardroom(
+  root: string,
+  roomId: string,
+  options: { name?: string; channels?: Channel[] } = {},
+  now: Date = new Date()
+): Promise<Boardroom> {
+  assertSafeSlug(roomId, "room id");
+  const iso = now.toISOString();
+  const boardroom: Boardroom = {
+    id: roomId,
+    channels: options.channels !== undefined && options.channels.length > 0 ? options.channels : [defaultChannel(iso)],
+    lifecycle: "active",
+    createdAt: iso,
+    updatedAt: iso,
+    legacy: false
+  };
+  if (options.name !== undefined) boardroom.name = options.name;
+  const paths = roomPaths(root, roomId);
+  return withWriterLock(paths.lock, async () => persistBoardroom(paths, boardroom));
+}
+
+// Host channel-create flow (T7): append a channel (chat|forum chosen at create
+// time) to the boardroom, materializing a legacy room's #general projection on
+// first write. Rejects a duplicate channel id.
+export async function addChannel(root: string, roomId: string, channel: Channel, now: Date = new Date()): Promise<Boardroom> {
+  assertSafeSlug(roomId, "room id");
   const paths = roomPaths(root, roomId);
   return withWriterLock(paths.lock, async () => {
-    await writeJson(paths.boardroom, persisted);
-    return persisted;
+    const current = await readBoardroomUnlocked(paths);
+    if (current.channels.some((c) => c.id === channel.id)) {
+      throw new Error(`channel already exists: ${channel.id}`);
+    }
+    const next: Boardroom = {
+      ...current,
+      channels: [...current.channels, channel],
+      updatedAt: now.toISOString(),
+      legacy: false
+    };
+    return persistBoardroom(paths, next);
   });
+}
+
+async function persistBoardroom(paths: RoomPaths, boardroom: Boardroom): Promise<Boardroom> {
+  const persisted: Boardroom = { ...boardroom, legacy: false };
+  assertValidBoardroom(persisted);
+  await writeJson(paths.boardroom, persisted);
+  return persisted;
+}
+
+async function readBoardroomUnlocked(paths: RoomPaths): Promise<Boardroom> {
+  try {
+    const persisted = await readJson<Boardroom>(paths.boardroom);
+    return { ...persisted, legacy: false };
+  } catch (error) {
+    if (!isNotFoundError(error)) throw error;
+    const state = await readRoomState(paths);
+    return deriveDefaultBoardroom({ id: state.id, createdAt: state.createdAt, updatedAt: state.updatedAt });
+  }
 }
 
 // Read a participant's read position in a channel. The default #general channel
