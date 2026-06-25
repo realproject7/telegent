@@ -96,7 +96,8 @@ test("POST /forum/posts creates a post authored by the caller", async () => {
 test("forum endpoints reject a non-forum channel and a missing post", async () => {
   const fx = await startFixture();
   try {
-    assert.equal((await fetch(`${fx.baseUrl}/forum/posts?channel=general`, authed(fx.token))).status, 200); // general has no forum dir → empty list, not error
+    // A chat channel is rejected on every forum path (not treated as an empty forum).
+    assert.equal((await fetch(`${fx.baseUrl}/forum/posts?channel=general`, authed(fx.token))).status, 400);
     const create = await fetch(`${fx.baseUrl}/forum/posts`, authed(fx.token, { channel: "general", title: "x", body: "y" }));
     assert.equal(create.status, 400); // general is a chat channel, not a forum
     const missing = await fetch(`${fx.baseUrl}/forum/post?channel=design-forum&post=nope`, authed(fx.token));
