@@ -28,6 +28,7 @@ import type { Channel, Participant, ParticipantKind, RoomBrief } from "../../../
 import {
   normalizeBaseUrl,
   parseAttendancePolicy,
+  parseAttentionMode,
   parseChannelType,
   parseForumStatus,
   roomUrl,
@@ -439,7 +440,13 @@ async function roomInvite(argv: string[], context: CliContext): Promise<number> 
   const current = await readCurrent(context.home);
   const kind = parseKind(flagString(args, "kind") ?? "agent");
   const token = createToken();
-  await upsertParticipant(context.home, current.roomId, participant(alias, kind, false, token));
+  // 9A: the host may request an attention mode for this participant; the
+  // effective mode is negotiated against the participant's declared support when
+  // it joins.
+  const invited = participant(alias, kind, false, token);
+  const requestedMode = flagString(args, "mode");
+  if (requestedMode !== undefined) invited.requested_mode = parseAttentionMode(requestedMode);
+  await upsertParticipant(context.home, current.roomId, invited);
   await writeToken(context.home, current.roomId, alias, token);
   const advertised = advertisedBaseUrl(context.home, current.roomId, current.baseUrl);
   const cardCommand = `curl -s "${roomUrl(advertised, `/card?participant=${alias}&token=${token}`)}"`;

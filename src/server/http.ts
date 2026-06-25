@@ -22,7 +22,9 @@ import {
   assertSafeSlug,
   describeAttendancePolicy,
   findNameOwnerConflict,
+  negotiateParticipantAttention,
   normalizeBaseUrl,
+  normalizeSupportedModes,
   parseAttendancePolicy,
   renderAgentInstructions,
   roomUrl
@@ -214,7 +216,12 @@ async function getProfile(context: RequestContext): Promise<void> {
 
 async function postProfile(context: RequestContext): Promise<void> {
   const auth = await requireParticipant(context);
-  const body = await readJsonBody<{ display_name?: unknown }>(context);
+  const body = await readJsonBody<{
+    display_name?: unknown;
+    supported_modes?: unknown;
+    poll_cadence_s?: unknown;
+    safety_wake_s?: unknown;
+  }>(context);
   if (typeof body.display_name !== "string") {
     throw new HttpError(400, "invalid_display_name", "display_name is required");
   }
@@ -229,11 +236,16 @@ async function postProfile(context: RequestContext): Promise<void> {
   if (conflict !== undefined) {
     throw new HttpError(409, "display_name_taken", "display name is already in use");
   }
-  const updated: Participant = {
+  // 9A: a participant may declare its supported attention modes + advisory
+  // cadences here. requested_mode is the host's (set on invite), never declared
+  // by the participant. effective_mode is server-negotiated below.
+  const declared = parseAttentionDeclaration(body);
+  const updated: Participant = withNegotiatedAttention({
     ...auth.participant,
+    ...declared,
     display_name: displayName,
     lastSeenAt: new Date().toISOString()
-  };
+  });
   await upsertParticipant(context.options.root, context.options.roomId, updated);
   sendJson(context.res, 200, { ok: true, participant: publicParticipant(updated) });
 }
@@ -242,16 +254,51 @@ async function postJoin(context: RequestContext): Promise<void> {
   const auth = await requireParticipant(context);
   const now = new Date().toISOString();
   const { removed_at: _removedAt, ...baseParticipant } = auth.participant;
-  const participant: Participant = {
+  // 9A: re-negotiate effective_mode on (re)connect from the stored declaration
+  // and the host's requested_mode.
+  const participant: Participant = withNegotiatedAttention({
     ...baseParticipant,
     attention: "attending",
     joinedAt: baseParticipant.joinedAt || now,
     lastSeenAt: now
-  };
+  });
   await upsertParticipant(context.options.root, context.options.roomId, participant);
   await appendSystem(context, `${auth.participant.alias} joined`);
   context.options.waitHub.notify(context.options.roomId);
   sendJson(context.res, 200, { ok: true, participant: auth.participant.alias });
+}
+
+// Apply the negotiated supported/requested/effective attention modes (9A).
+function withNegotiatedAttention(participant: Participant): Participant {
+  return { ...participant, ...negotiateParticipantAttention(participant) };
+}
+
+function parseAttentionDeclaration(body: {
+  supported_modes?: unknown;
+  poll_cadence_s?: unknown;
+  safety_wake_s?: unknown;
+}): Partial<Pick<Participant, "supported_modes" | "poll_cadence_s" | "safety_wake_s">> {
+  const out: Partial<Pick<Participant, "supported_modes" | "poll_cadence_s" | "safety_wake_s">> = {};
+  if (body.supported_modes !== undefined) {
+    if (!Array.isArray(body.supported_modes) || body.supported_modes.some((m) => typeof m !== "string")) {
+      throw new HttpError(400, "invalid_supported_modes", "supported_modes must be an array of mode strings");
+    }
+    try {
+      out.supported_modes = normalizeSupportedModes(body.supported_modes as string[]);
+    } catch (error) {
+      throw new HttpError(400, "invalid_supported_modes", error instanceof Error ? error.message : "invalid supported_modes");
+    }
+  }
+  if (body.poll_cadence_s !== undefined) out.poll_cadence_s = parsePositiveSeconds(body.poll_cadence_s, "poll_cadence_s");
+  if (body.safety_wake_s !== undefined) out.safety_wake_s = parsePositiveSeconds(body.safety_wake_s, "safety_wake_s");
+  return out;
+}
+
+function parsePositiveSeconds(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new HttpError(400, "invalid_cadence", `${label} must be a positive number of seconds`);
+  }
+  return value;
 }
 
 async function getMessages(context: RequestContext): Promise<void> {
