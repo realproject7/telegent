@@ -464,7 +464,14 @@ function renderParticipantGroup(label, group) {
     const aliasPart =
       participant.display_name && participant.display_name !== participant.alias ? `@${participant.alias} · ` : "";
     const hostPart = participant.is_host ? "host · " : "";
-    meta.textContent = `${aliasPart}${hostPart}${formatRelative(participant.lastSeenAt)}`;
+    // 9A: show the negotiated effective attention mode; when degraded (the host
+    // requested a more capable mode than the participant can provide) show both
+    // as `requested→effective`. effective_mode is always a declared mode or the
+    // manual floor, so the roster never claims an undeclared capability.
+    const modePart = participant.effective_mode
+      ? `${participant.requested_mode && participant.requested_mode !== participant.effective_mode ? `${participant.requested_mode}→` : ""}${participant.effective_mode} · `
+      : "";
+    meta.textContent = `${aliasPart}${hostPart}${modePart}${formatRelative(participant.lastSeenAt)}`;
     item.append(name, status, meta);
     participantList.append(item);
   }
