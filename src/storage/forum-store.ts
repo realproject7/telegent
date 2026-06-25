@@ -89,6 +89,7 @@ export async function readForumPost(
   assertSafeSlug(channelId, "channel id");
   assertSafeSlug(postId, "forum post id");
   const post = await readJson<ForumPost>(postFile(root, roomId, channelId, postId));
+  assertValidForumPost(post); // enforce the frozen schema (incl. schema_version) on read
   const comments = await readCommentsLog(root, roomId, channelId, postId);
   return { post, comments };
 }
@@ -106,7 +107,9 @@ export async function listForumPosts(root: string, roomId: string, channelId: st
   const posts: ForumPost[] = [];
   for (const postId of entries) {
     try {
-      posts.push(await readJson<ForumPost>(postFile(root, roomId, channelId, postId)));
+      const post = await readJson<ForumPost>(postFile(root, roomId, channelId, postId));
+      assertValidForumPost(post); // enforce the frozen schema on read
+      posts.push(post);
     } catch (error) {
       if (!isNotFoundError(error)) throw error;
     }
@@ -128,8 +131,8 @@ export async function addForumComment(
   assertForumBody(input.body);
   const paths = roomPaths(root, roomId);
   return withWriterLock(paths.lock, async () => {
-    // Post must exist (also confirms the channel/post path).
-    await readJson<ForumPost>(postFile(root, roomId, channelId, postId));
+    // Post must exist and satisfy the frozen schema (also confirms the path).
+    assertValidForumPost(await readJson<ForumPost>(postFile(root, roomId, channelId, postId)));
     const existing = await readCommentsLog(root, roomId, channelId, postId);
     const comment: ForumComment = {
       schema_version: FORUM_SCHEMA_VERSION,
@@ -160,6 +163,7 @@ export async function setForumPostStatus(
   const paths = roomPaths(root, roomId);
   return withWriterLock(paths.lock, async () => {
     const post = await readJson<ForumPost>(postFile(root, roomId, channelId, postId));
+    assertValidForumPost(post); // reject a tampered/wrong-version record before updating
     const updated: ForumPost = { ...post, status, updated_at: now.toISOString() };
     assertValidForumPost(updated);
     await writeJson(postFile(root, roomId, channelId, postId), updated);
@@ -190,7 +194,11 @@ async function readCommentsLog(root: string, roomId: string, channelId: string, 
     return raw
       .split("\n")
       .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line) as ForumComment);
+      .map((line) => {
+        const comment = JSON.parse(line) as ForumComment;
+        assertValidForumComment(comment); // enforce the frozen schema on read
+        return comment;
+      });
   } catch (error) {
     if (isNotFoundError(error)) return [];
     throw error;

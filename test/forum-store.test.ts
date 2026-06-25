@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -113,4 +113,35 @@ test("listForumPosts returns posts sorted by creation; duplicate ids rejected", 
 test("no forum dir yet → listForumPosts is empty (no duplicated/eager storage)", async () => {
   const root = await seedForum();
   assert.deepEqual(await listForumPosts(root, "demo", "design-forum"), []);
+});
+
+test("the frozen schema_version is enforced by the validators", () => {
+  const base: ForumPost = {
+    schema_version: FORUM_SCHEMA_VERSION,
+    id: "p",
+    channel_id: "design-forum",
+    author: "host",
+    title: "T",
+    body: "B",
+    status: "open",
+    tags: [],
+    created_at: "t",
+    updated_at: "t"
+  };
+  assert.doesNotThrow(() => assertValidForumPost(base));
+  assert.throws(() => assertValidForumPost({ ...base, schema_version: 999 }), /schema_version/);
+  assert.throws(() => assertValidForumPost({ ...base, schema_version: undefined as unknown as number }), /schema_version/);
+});
+
+test("a post.json with a wrong schema_version is rejected on read (not silently accepted)", async () => {
+  const root = await seedForum();
+  const dir = path.join(roomPaths(root, "demo").room, "forum", "design-forum", "future");
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    path.join(dir, "post.json"),
+    JSON.stringify({ schema_version: 2, id: "future", channel_id: "design-forum", author: "host", title: "T", body: "B", status: "open", tags: [], created_at: "t", updated_at: "t" })
+  );
+  await assert.rejects(readForumPost(root, "demo", "design-forum", "future"), /schema_version/);
+  // listForumPosts skips/raises rather than silently returning the bad record.
+  await assert.rejects(listForumPosts(root, "demo", "design-forum"), /schema_version/);
 });

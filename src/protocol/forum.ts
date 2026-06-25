@@ -79,7 +79,14 @@ export function assertForumBody(body: string): void {
   }
 }
 
+export function assertSchemaVersion(value: unknown, label: string): void {
+  if (value !== FORUM_SCHEMA_VERSION) {
+    throw new Error(`${label} schema_version must be ${FORUM_SCHEMA_VERSION} (got ${String(value)})`);
+  }
+}
+
 export function assertValidForumPost(post: ForumPost): void {
+  assertSchemaVersion(post.schema_version, "forum post");
   assertSafeSlug(post.id, "forum post id");
   assertSafeSlug(post.channel_id, "channel id");
   assertSafeSlug(post.author, "forum post author");
@@ -90,6 +97,7 @@ export function assertValidForumPost(post: ForumPost): void {
 }
 
 export function assertValidForumComment(comment: ForumComment): void {
+  assertSchemaVersion(comment.schema_version, "forum comment");
   assertSafeSlug(comment.id, "forum comment id");
   assertSafeSlug(comment.post_id, "forum post id");
   assertSafeSlug(comment.channel_id, "channel id");
