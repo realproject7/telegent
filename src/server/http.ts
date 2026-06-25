@@ -808,20 +808,40 @@ export function renderAttendCard(
     `curl -s -X POST "${roomUrl(baseUrl, "/messages")}" -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data '{"text":"hello"}'`,
     "",
     ...(forumReviewChannel === undefined ? [] : forumReviewSection(baseUrl, token, forumReviewChannel)),
-    "## Attendance Recovery",
-    "If you run a tool command or shell script, return to foreground attendance immediately after it finishes:",
-    "agentgather attend --json",
-    "If a shell command contains pipes, quotes, or `${...}`, ask the host for a script file and run one quote-free command such as `bash /path/to/script.sh`.",
-    "If the attend loop stops, Agent Gather v0.1 cannot wake this session automatically; the host will see you as stale until you rejoin or attend again.",
+    ...attendanceRecovery(forumReviewChannel !== undefined),
     "",
     "## First Action",
     "After joining, send a short ready message so the host and humans can see that you are present.",
     "",
     "## Stop Attending",
-    "When the host releases you or the room closes, stop the foreground loop and send a final note if useful.",
+    forumReviewChannel === undefined
+      ? "When the host releases you or the room closes, stop the foreground loop and send a final note if useful."
+      : "When the host marks the task resolved or the room closes, stop watching and send a final note if useful.",
     "",
     renderAgentInstructions()
   ].join("\n");
+}
+
+// Recovery guidance. A forum-review (async) card must NOT force a foreground loop
+// or deny wake-on-event; it returns to the agent's declared mode and reflects the
+// 9B contract (honest manual fallback) instead.
+function attendanceRecovery(forumReview: boolean): string[] {
+  if (forumReview) {
+    return [
+      "## Attendance Recovery",
+      "This is an async forum-review task — you do NOT need to hold a foreground attend loop.",
+      "After running a command, return to your declared attention mode: wake-on-event / cheap watching if your harness supports it, otherwise `manual`.",
+      "If a shell command contains pipes, quotes, or `${...}`, ask the host for a script file and run one quote-free command such as `bash /path/to/script.sh`.",
+      "Per your declared mode, the next assigned/updated post reaches you as an actionable `/wait` return; empty polls do not invoke the model. If you declared `manual`, a human relays — Agent Gather does not wake a detached session on its own."
+    ];
+  }
+  return [
+    "## Attendance Recovery",
+    "If you run a tool command or shell script, return to foreground attendance immediately after it finishes:",
+    "agentgather attend --json",
+    "If a shell command contains pipes, quotes, or `${...}`, ask the host for a script file and run one quote-free command such as `bash /path/to/script.sh`.",
+    "If the attend loop stops, Agent Gather v0.1 cannot wake this session automatically; the host will see you as stale until you rejoin or attend again."
+  ];
 }
 
 // Forum review task block (T10): the 9B wake-on-event guidance + copy-pastable

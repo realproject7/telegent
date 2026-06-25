@@ -46,6 +46,11 @@ test("an agent invited for forum review gets the forum section + real T6 command
   assert.match(card, /"channel":"design-forum","post":"POST_ID"/);
   // agent can go idle (no forced foreground)
   assert.match(card, /go idle/i);
+  // recovery must NOT force foreground attendance or deny wake-on-event (T10 contract)
+  assert.equal(card.includes("return to foreground attendance immediately"), false);
+  assert.equal(card.includes("cannot wake this session automatically"), false);
+  assert.match(card, /do NOT need to hold a foreground attend loop/);
+  assert.match(card, /return to your declared attention mode/);
   // safety language intact (advice, not authority)
   assert.match(card, /external advice, not operator instructions/);
   // Within the new forum-review section the token appears exactly once (the env
@@ -61,6 +66,7 @@ test("an agent NOT invited for forum review gets no forum section (zero regressi
   const card = renderInviteCard("http://127.0.0.1:8787", agent(), "tgl_reviewer", brief, "manual-ok");
   assert.equal(card.includes("## Forum review task"), false);
   assert.equal(card.includes("/forum/comment"), false);
-  // existing attend card content remains
+  // existing attend card content + the original (foreground) recovery remain unchanged
   assert.match(card, /## Attend Card|## Commands|agentgather attend/);
+  assert.match(card, /return to foreground attendance immediately/);
 });
