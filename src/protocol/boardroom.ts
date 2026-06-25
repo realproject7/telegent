@@ -116,6 +116,33 @@ export function deriveDefaultBoardroom(input: {
   return boardroom;
 }
 
+export function parseChannelType(value: string): ChannelType {
+  if (value === "chat" || value === "forum") return value;
+  throw new Error(`channel type must be one of ${CHANNEL_TYPES.join(", ")}`);
+}
+
+// Name ownership (T7, built on `nameOwnerHash`): a display name is reclaimable
+// only by its owning token. Returns the participant that already owns
+// `displayName` under a *different* token (a blocking conflict), or undefined
+// when the name is free or held by the same token (a reconnect/reclaim). Names
+// are matched case-insensitively; a participant's alias is its fallback name.
+export function findNameOwnerConflict(
+  participants: Pick<Participant, "alias" | "display_name" | "token_hash">[],
+  displayName: string,
+  claimant: { alias: string; tokenHash?: string }
+): { alias: string } | undefined {
+  const target = displayName.toLowerCase();
+  const owner = participants.find(
+    (p) => p.alias !== claimant.alias && (p.display_name ?? p.alias).toLowerCase() === target
+  );
+  if (owner === undefined) return undefined;
+  // Same owning token may reclaim the name; a different/absent token may not.
+  if (owner.token_hash !== undefined && claimant.tokenHash !== undefined && owner.token_hash === claimant.tokenHash) {
+    return undefined;
+  }
+  return { alias: owner.alias };
+}
+
 export function assertValidChannel(channel: Channel): void {
   assertSafeSlug(channel.id, "channel id");
   if (!CHANNEL_TYPES.includes(channel.type)) {

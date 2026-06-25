@@ -1,7 +1,10 @@
 import {
+  addChannel,
   appendServerMessage,
   closeRoom,
+  createBoardroom,
   createRoom,
+  readBoardroom,
   readBrief,
   readParticipants,
   readRoomState,
@@ -11,8 +14,14 @@ import {
   upsertParticipant,
   writeParticipants
 } from "../../../storage/index.js";
-import type { Participant, ParticipantKind, RoomBrief } from "../../../protocol/index.js";
-import { normalizeBaseUrl, parseAttendancePolicy, roomUrl, type AttendancePolicy } from "../../../protocol/index.js";
+import type { Channel, Participant, ParticipantKind, RoomBrief } from "../../../protocol/index.js";
+import {
+  normalizeBaseUrl,
+  parseAttendancePolicy,
+  parseChannelType,
+  roomUrl,
+  type AttendancePolicy
+} from "../../../protocol/index.js";
 import { createToken } from "../../../auth/index.js";
 import { createRoomHttpServer, participantTokenHash, renderInviteCard } from "../../../server/index.js";
 import { readPublicBaseUrl } from "../../../tunnel/index.js";
@@ -23,6 +32,9 @@ import { readCurrent, readToken, writeCurrent, writeToken } from "../../state.js
 export async function runRoomCommand(argv: string[], context: CliContext): Promise<number> {
   const [subcommand, ...rest] = argv;
   if (subcommand === "start") return roomStart(rest, context);
+  if (subcommand === "create-boardroom") return roomCreateBoardroom(rest, context);
+  if (subcommand === "channel-create") return roomChannelCreate(rest, context);
+  if (subcommand === "boardroom") return roomBoardroom(rest, context);
   if (subcommand === "brief") return roomBrief(rest, context);
   if (subcommand === "attendance") return roomAttendance(rest, context);
   if (subcommand === "serve") return roomServe(rest, context);
@@ -58,6 +70,95 @@ async function roomStart(argv: string[], context: CliContext): Promise<number> {
   await writeToken(context.home, roomId, alias, token);
   await writeCurrent(context.home, { roomId, alias, token, baseUrl });
   return emit(context, flagBoolean(args, "json"), { ok: true, room: roomId, alias, token, baseUrl });
+}
+
+// Host create-boardroom flow (T7): create the room + host participant like
+// `room start`, then materialize the boardroom with its channels (chat|forum
+// chosen at creation, e.g. `--channels general:chat,design-forum:forum`).
+async function roomCreateBoardroom(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const roomId = args.positional[0];
+  if (roomId === undefined) throw new Error("room id is required");
+  const alias = flagString(args, "alias") ?? "host";
+  const baseUrl = normalizeBaseUrl(flagString(args, "url") ?? "http://127.0.0.1:8787");
+  const token = createToken();
+  const briefBody = flagString(args, "brief") ?? "";
+  const expiresAt = flagString(args, "expires-at");
+  const now = new Date();
+  const channels = parseChannelSpec(flagString(args, "channels"), now.toISOString());
+  await createRoom({
+    root: context.home,
+    roomId,
+    hostAlias: alias,
+    briefBody,
+    attendancePolicy: parseAttendancePolicy(flagString(args, "attendance") ?? "manual-ok"),
+    ...(expiresAt === undefined ? {} : { expiresAt: new Date(expiresAt) })
+  });
+  await writeParticipants(context.home, roomId, [participant(alias, "human", true, token)]);
+  await writeToken(context.home, roomId, alias, token);
+  await writeCurrent(context.home, { roomId, alias, token, baseUrl });
+  const boardroomOptions: { name?: string; channels: Channel[] } = { channels };
+  const boardroomName = flagString(args, "name");
+  if (boardroomName !== undefined) boardroomOptions.name = boardroomName;
+  const boardroom = await createBoardroom(context.home, roomId, boardroomOptions, now);
+  // The host token is persisted to local state above; it is deliberately NOT
+  // echoed here so the create response never carries a raw token (#144 gate).
+  // Use `room invite` to mint shareable participant credentials.
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, room: roomId, alias, baseUrl, boardroom },
+    `Boardroom ${roomId} created with channels: ${boardroom.channels.map((c) => `#${c.id} (${c.type})`).join(", ")}\n` +
+      "Host credentials saved locally. Use `room invite <name>` to invite participants.\n"
+  );
+}
+
+// Host channel-create flow (T7): add a channel to the current boardroom,
+// choosing its type at creation time.
+async function roomChannelCreate(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const channelId = args.positional[0];
+  if (channelId === undefined) throw new Error("channel id is required");
+  const current = await readCurrent(context.home);
+  const type = parseChannelType(flagString(args, "type") ?? "chat");
+  const channel: Channel = {
+    id: channelId,
+    name: flagString(args, "name") ?? channelId,
+    type,
+    lifecycle: "active",
+    createdAt: new Date().toISOString()
+  };
+  const boardroom = await addChannel(context.home, current.roomId, channel);
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, room: current.roomId, channel, boardroom },
+    `Channel #${channelId} (${type}) added to ${current.roomId}\n`
+  );
+}
+
+// View the current boardroom (channels + lifecycle). Carries no tokens.
+async function roomBoardroom(argv: string[], context: CliContext): Promise<number> {
+  const args = parseArgs(argv);
+  const current = await readCurrent(context.home);
+  const boardroom = await readBoardroom(context.home, current.roomId);
+  return emit(
+    context,
+    flagBoolean(args, "json"),
+    { ok: true, boardroom },
+    `${boardroom.channels.map((c) => `#${c.id} (${c.type}, ${c.lifecycle})`).join("\n")}\n`
+  );
+}
+
+function parseChannelSpec(spec: string | undefined, createdAt: string): Channel[] {
+  if (spec === undefined || spec.trim() === "") {
+    return [{ id: "general", name: "general", type: "chat", lifecycle: "active", createdAt }];
+  }
+  return spec.split(",").map((entry) => {
+    const [rawId, rawType] = entry.split(":");
+    const id = (rawId ?? "").trim();
+    return { id, name: id, type: parseChannelType((rawType ?? "chat").trim()), lifecycle: "active" as const, createdAt };
+  });
 }
 
 async function roomBrief(argv: string[], context: CliContext): Promise<number> {
