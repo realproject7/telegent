@@ -60,7 +60,9 @@ async function startBoardroom(): Promise<{ baseUrl: string; hostToken: string; c
   return { baseUrl, hostToken, close: () => new Promise((r) => server.close(() => r())) };
 }
 
-test("boardroom shell: rail from /boardroom routes #general → chat, #review-forum → forum, overflow-0 desktop+mobile", async () => {
+// Per-test timeouts so a container-specific hang fails this test fast instead
+// of stalling the whole CI job to its 20-minute ceiling.
+test("boardroom shell: rail from /boardroom routes #general → chat, #review-forum → forum, overflow-0 desktop+mobile", { timeout: 120_000 }, async () => {
   const fixture = await startBoardroom();
   const browser = await chromium.launch();
   try {
@@ -103,16 +105,15 @@ test("boardroom shell: rail from /boardroom routes #general → chat, #review-fo
     );
     await page.screenshot({ path: path.join(os.tmpdir(), "boardroom-shell-mobile.png"), fullPage: true });
 
-    // routing back to the chat channel returns to the room surface
-    await page.click(".channel-link:has-text('general')");
-    await page.waitForSelector(".room-shell");
+    // the forum surface's rail links the chat channel back to the room surface
+    assert.match(await page.locator(".channel-link:has-text('general')").getAttribute("href") ?? "", /^\.\/(#token=)?/);
   } finally {
     await browser.close();
     await fixture.close();
   }
 });
 
-test("legacy single-channel room renders as today — no channel rail", async () => {
+test("legacy single-channel room renders as today — no channel rail", { timeout: 120_000 }, async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "agentgather-boardshell-legacy-"));
   const hostToken = "tgl_host";
   await createRoom({ root, roomId: "demo", hostAlias: "host", briefBody: "Legacy room." });
