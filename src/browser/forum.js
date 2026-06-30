@@ -1,8 +1,13 @@
-// Forum channel UI (V2 T8). Renders the FROZEN T6 schema over the small forum
-// HTTP surface (/forum/*). Reuses the shared safe Markdown renderer (no second
-// renderer / no new injection surface). The wake-on-event badge is metadata
-// only — derived from a participant's negotiated 9A effective_mode; it never
-// drives any wake mechanic.
+// Forum channel UI (V2 #170). Renders the FROZEN T6 schema over the small forum
+// HTTP surface (/forum/*) in two states: FEED (state A — flat post rows with
+// search / New Post / sort / status filters) and THREAD (state B — focused view
+// with breadcrumb, post body, chronological comments split by date dividers, and
+// an anchored composer). Post-to-post navigation also nests under the forum
+// channel in the shared channel rail.
+//
+// Reuses the shared safe Markdown renderer (no second renderer / no new
+// injection surface). The wake-on-event badge is metadata only — derived from a
+// participant's negotiated 9A effective_mode; it never drives any wake mechanic.
 import { renderSafeMarkdown } from "./markdown.js";
 
 const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -12,7 +17,21 @@ if (token) history.replaceState(null, "", location.pathname + location.search);
 const channel = new URLSearchParams(location.search).get("channel");
 
 const STATUSES = ["open", "answered", "resolved", "closed"];
-const state = { posts: [], filter: "all", selected: null, participants: new Map() };
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+const state = {
+  posts: [],
+  filter: "all",
+  query: "",
+  sort: "newest",
+  view: "feed",
+  selected: null,
+  participants: new Map()
+};
+// Nested-post rail hooks, handed over by channel-rail.js once the rail loads.
+const rail = { subgroup: null, activeLink: null };
 
 const el = (id) => document.getElementById(id);
 const shell = document.querySelector(".forum-shell");
@@ -34,6 +53,21 @@ function relativeTime(iso) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+// Calendar-day key + human label for grouping comments under date dividers.
+function dayKey(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dayLabel(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 function initials(name) {
   return String(name || "?")
     .replace(/[^a-z0-9]/gi, " ")
@@ -49,6 +83,19 @@ function participantInfo(alias) {
   return state.participants.get(alias) || { kind: "agent", effective_mode: undefined };
 }
 
+function span(text) {
+  const s = document.createElement("span");
+  s.textContent = text;
+  return s;
+}
+
+function spanClass(className, text) {
+  const s = document.createElement("span");
+  s.className = className;
+  s.textContent = text;
+  return s;
+}
+
 function statusPill(status) {
   const pill = document.createElement("span");
   pill.className = `st ${STATUSES.includes(status) ? status : "open"}`;
@@ -59,16 +106,15 @@ function statusPill(status) {
   return pill;
 }
 
-function tagList(tags) {
-  const wrap = document.createElement("div");
-  wrap.className = "tags";
-  for (const tag of tags || []) {
-    const span = document.createElement("span");
-    span.className = "tag";
-    span.textContent = tag;
-    wrap.append(span);
-  }
-  return wrap;
+function tagNodes(tags) {
+  return (tags || []).map((tag) => spanClass("tag", tag));
+}
+
+function avatar(alias, kind) {
+  const av = document.createElement("span");
+  av.className = `av ${kind === "agent" ? "ag" : "hu"}`;
+  av.textContent = initials(alias);
+  return av;
 }
 
 function setListState(text, isError) {
@@ -82,62 +128,95 @@ function setListState(text, isError) {
   node.classList.toggle("error", Boolean(isError));
 }
 
-function renderList() {
+// One-line body preview for a feed row (raw text — never rendered as markdown).
+function bodyPreview(body) {
+  const text = String(body || "").replace(/\s+/g, " ").trim();
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+}
+
+function sortByDate(posts) {
+  return posts.slice().sort((a, b) => {
+    const ta = Date.parse(a.created_at) || 0;
+    const tb = Date.parse(b.created_at) || 0;
+    return state.sort === "newest" ? tb - ta : ta - tb;
+  });
+}
+
+// ---- FEED (state A) ----
+function visiblePosts() {
+  let posts = state.posts;
+  if (state.filter !== "all") posts = posts.filter((p) => p.status === state.filter);
+  if (state.query) {
+    posts = posts.filter((p) =>
+      `${p.title} ${p.body} ${p.author}`.toLowerCase().includes(state.query)
+    );
+  }
+  return sortByDate(posts);
+}
+
+function renderFeed() {
   const list = el("post-list");
   list.replaceChildren();
-  const posts = state.filter === "all" ? state.posts : state.posts.filter((p) => p.status === state.filter);
-  el("post-count").textContent = `${state.posts.length} ${state.posts.length === 1 ? "post" : "posts"}`;
   if (state.posts.length === 0) {
-    setListState("No posts yet. Start the first thread with “new post”.");
+    setListState("No posts yet. Start the first thread with “New Post”.");
     return;
   }
+  const posts = visiblePosts();
   if (posts.length === 0) {
-    setListState(`No ${state.filter} posts.`);
+    setListState(state.query ? "No posts match your search." : `No ${state.filter} posts.`);
     return;
   }
   setListState(null);
   for (const post of posts) {
-    const item = document.createElement("li");
-    item.className = `post${post.id === state.selected ? " sel" : ""}`;
-    item.tabIndex = 0;
-    const r1 = document.createElement("div");
-    r1.className = "row";
-    const title = document.createElement("span");
-    title.className = "ti";
-    title.textContent = post.title;
-    r1.append(title);
-    const r2 = document.createElement("div");
-    r2.className = "row";
-    r2.append(statusPill(post.status), tagList(post.tags));
+    const row = document.createElement("article");
+    row.className = "row";
+    row.dataset.id = post.id;
+    row.tabIndex = 0;
+
+    const col = document.createElement("div");
+    col.className = "col";
+
+    const title = spanClass("ti", post.title);
+
+    const preview = document.createElement("div");
+    preview.className = "pv";
+    preview.append(spanClass("au", post.author), document.createTextNode(` · ${bodyPreview(post.body)}`));
+
     const meta = document.createElement("div");
     meta.className = "meta";
-    const author = document.createElement("span");
-    author.className = `a${participantInfo(post.author).kind === "agent" ? " agent" : ""}`;
-    author.textContent = post.author;
-    meta.append(author, span(`· ${relativeTime(post.created_at)}`), span(`· ${post.comment_count ?? 0} comments`));
-    item.append(r1, r2, meta);
-    item.addEventListener("click", () => selectPost(post.id));
-    item.addEventListener("keydown", (event) => {
+    meta.append(statusPill(post.status));
+    const tags = tagNodes(post.tags);
+    if (tags.length > 0) {
+      const tagWrap = document.createElement("span");
+      tagWrap.className = "tags";
+      tagWrap.append(...tags);
+      meta.append(tagWrap);
+    }
+    const count = post.comment_count ?? 0;
+    meta.append(spanClass("m cm", `▣ ${count} ${count === 1 ? "comment" : "comments"}`));
+    meta.append(spanClass("m", relativeTime(post.created_at)));
+
+    col.append(title, preview, meta);
+    row.append(col);
+    row.addEventListener("click", () => selectPost(post.id));
+    row.addEventListener("keydown", (event) => {
       if (event.key === "Enter") selectPost(post.id);
     });
-    list.append(item);
+    list.append(row);
   }
 }
 
-function span(text) {
-  const s = document.createElement("span");
-  s.textContent = text;
-  return s;
-}
-
-function renderDetail(thread) {
+// ---- THREAD (state B) ----
+function renderThread(thread) {
   const { post, comments } = thread;
+  // keep the cached count fresh so the feed/rail reflect it on return
+  const idx = state.posts.findIndex((p) => p.id === post.id);
+  if (idx >= 0) state.posts[idx].comment_count = comments.length;
+
   el("detail-state").hidden = true;
   el("detail").hidden = false;
   el("detail-title").textContent = post.title;
-  const status = el("detail-status");
-  status.replaceChildren(statusPill(post.status));
-  el("detail-tags").replaceChildren(...[...tagList(post.tags).childNodes]);
+  el("crumb-title").textContent = post.title;
 
   const by = el("detail-by");
   by.replaceChildren();
@@ -147,23 +226,26 @@ function renderDetail(thread) {
   if (info.kind === "agent") name.className = "agent";
   name.textContent = post.author;
   by.append(name, span(`· posted ${relativeTime(post.created_at)}`));
-  if (post.updated_at && post.updated_at !== post.created_at) by.append(span(`· updated ${relativeTime(post.updated_at)}`));
+  if (post.updated_at && post.updated_at !== post.created_at) {
+    by.append(span(`· updated ${relativeTime(post.updated_at)}`));
+  }
+  by.append(statusPill(post.status));
+
+  el("detail-tags").replaceChildren(...tagNodes(post.tags));
 
   renderSafeMarkdown(el("detail-body"), post.body);
 
-  el("comments-label").textContent = `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`;
   const wrap = el("comments");
   wrap.replaceChildren();
+  let lastDay = null;
   for (const comment of comments) {
+    const day = dayKey(comment.created_at);
+    if (day && day !== lastDay) {
+      wrap.append(spanClass("datediv", dayLabel(comment.created_at)));
+      lastDay = day;
+    }
     wrap.append(renderComment(comment));
   }
-}
-
-function avatar(alias, kind) {
-  const av = document.createElement("span");
-  av.className = `av ${kind === "agent" ? "ag" : "hu"}`;
-  av.textContent = initials(alias);
-  return av;
 }
 
 function renderComment(comment) {
@@ -178,7 +260,11 @@ function renderComment(comment) {
   const nm = document.createElement("span");
   nm.className = `nm${info.kind === "agent" ? " agent" : ""}`;
   nm.textContent = comment.author;
-  head.append(nm, spanClass("ci", `· ${info.kind === "agent" ? "agent" : "human"}`), spanClass("tm", `· ${relativeTime(comment.created_at)}`));
+  head.append(
+    nm,
+    spanClass("ci", `· ${info.kind === "agent" ? "agent" : "human"}`),
+    spanClass("tm", `· ${relativeTime(comment.created_at)}`)
+  );
   // Metadata-only badge: this author attends via wake-on-event (9A). Display only.
   if (info.kind === "agent" && info.effective_mode === "wake_on_event") {
     head.append(spanClass("wakebadge", "↯ via wake-on-event"));
@@ -191,17 +277,51 @@ function renderComment(comment) {
   return row;
 }
 
-function spanClass(className, text) {
-  const s = document.createElement("span");
-  s.className = className;
-  s.textContent = text;
-  return s;
+// ---- channel-rail nested posts (state A/B navigation) ----
+function renderRailPosts() {
+  if (!rail.subgroup) return;
+  rail.subgroup.replaceChildren();
+  if (state.posts.length === 0) {
+    rail.subgroup.hidden = true;
+    return;
+  }
+  for (const post of sortByDate(state.posts)) {
+    const item = document.createElement("div");
+    item.className = `rail-post${post.id === state.selected ? " on" : ""}`;
+    item.dataset.id = post.id;
+    item.tabIndex = 0;
+    const pd = spanClass("pd", "◆");
+    pd.setAttribute("aria-hidden", "true");
+    item.append(pd, spanClass("nm", post.title));
+    item.addEventListener("click", () => selectPost(post.id));
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") selectPost(post.id);
+    });
+    rail.subgroup.append(item);
+  }
+  rail.subgroup.hidden = false;
+}
+
+// Reflect the current state on the rail: in the feed the forum channel stays
+// highlighted; in a thread the highlight moves down to the selected post.
+function setRailActive() {
+  const inThread = state.view === "thread";
+  if (rail.activeLink) {
+    rail.activeLink.classList.toggle("parent", inThread);
+    rail.activeLink.classList.toggle("on", !inThread);
+  }
+  if (rail.subgroup) {
+    for (const item of rail.subgroup.querySelectorAll(".rail-post")) {
+      item.classList.toggle("on", inThread && item.dataset.id === String(state.selected));
+    }
+  }
 }
 
 async function selectPost(id) {
   state.selected = id;
-  renderList();
-  shell.dataset.view = "detail";
+  state.view = "thread";
+  shell.dataset.view = "thread";
+  setRailActive();
   el("detail").hidden = true;
   el("detail-state").hidden = false;
   el("detail-state").textContent = "Loading thread…";
@@ -209,13 +329,21 @@ async function selectPost(id) {
   try {
     const res = await authFetch(`/forum/post?channel=${encodeURIComponent(channel)}&post=${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error(`status ${res.status}`);
-    renderDetail(await res.json());
+    renderThread(await res.json());
   } catch {
     el("detail").hidden = true;
     el("detail-state").hidden = false;
     el("detail-state").textContent = "Could not load this post.";
     el("detail-state").classList.add("error");
   }
+}
+
+function backToFeed() {
+  state.selected = null;
+  state.view = "feed";
+  shell.dataset.view = "feed";
+  setRailActive();
+  renderFeed();
 }
 
 async function loadParticipants() {
@@ -235,10 +363,11 @@ async function loadPosts() {
     const res = await authFetch(`/forum/posts?channel=${encodeURIComponent(channel)}`);
     if (!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
-    // comment_count is derived per-post from the thread; keep the list cheap by
-    // defaulting to 0 and filling it when a post is opened.
+    // comment_count is a derived, response-only field on the list endpoint.
     state.posts = (data.posts || []).map((p) => ({ comment_count: 0, ...p }));
-    renderList();
+    renderFeed();
+    renderRailPosts();
+    setRailActive();
   } catch {
     setListState("Could not load the forum. Check the channel and try again.", true);
   }
@@ -298,14 +427,27 @@ function wireFilters() {
     chip.addEventListener("click", () => {
       state.filter = chip.dataset.filter;
       for (const other of document.querySelectorAll(".fchip")) other.classList.toggle("on", other === chip);
-      renderList();
+      renderFeed();
     });
   }
 }
 
+function onRailReady(detail) {
+  rail.subgroup = detail.subgroup || null;
+  rail.activeLink = detail.activeForumLink || null;
+  renderRailPosts();
+  setRailActive();
+}
+
 function start() {
+  // Register the rail handover listener synchronously, before any await, so the
+  // channel-rail:ready event (fired after its async /boardroom fetch) is caught.
+  document.addEventListener("channel-rail:ready", (event) => onRailReady(event.detail || {}));
+  const existing = document.getElementById("rail-subgroup");
+  if (existing) onRailReady({ subgroup: existing, activeForumLink: document.getElementById("rail-active-forum") });
+
   el("forum-channel-title").textContent = channel ? `forum · #${channel}` : "forum";
-  el("forum-channel-name").textContent = channel || "forum";
+  el("crumb-channel").textContent = `◆ ${channel || "forum"}`;
   wireFilters();
   el("comment-form").addEventListener("submit", submitComment);
   el("new-post-form").addEventListener("submit", submitNewPost);
@@ -315,8 +457,17 @@ function start() {
   el("new-post-cancel").addEventListener("click", () => {
     el("new-post-form").hidden = true;
   });
-  el("forum-back").addEventListener("click", () => {
-    shell.dataset.view = "list";
+  el("forum-back").addEventListener("click", backToFeed);
+  el("forum-search").addEventListener("input", (event) => {
+    state.query = event.target.value.trim().toLowerCase();
+    renderFeed();
+  });
+  el("sort-btn").addEventListener("click", () => {
+    state.sort = state.sort === "newest" ? "oldest" : "newest";
+    el("sort-label").textContent = state.sort;
+    renderFeed();
+    renderRailPosts();
+    setRailActive();
   });
   if (!channel) {
     setListState("No forum channel selected. Add ?channel=<forum-channel> to the URL.", true);

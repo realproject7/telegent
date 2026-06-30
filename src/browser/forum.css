@@ -1,8 +1,12 @@
 @import url("theme.css");
 
-/* Forum channel UI (V2 T8) — renders the frozen T6 schema. Consumes the v5 kit
-   (k-frame/k-rail/k-pane/k-composer/k-pill/k-card) + tokens only; no raw hex or
-   chromatic rgb lives here (enforced by the anti-drift guard). */
+/* Forum channel UI (V2 #170) — feed + selected-thread redesign over the FROZEN
+   T6 schema. Two states share the shell: FEED (state A, no post selected) shows
+   flat post rows with search / New Post / sort / filter chips; THREAD (state B,
+   post selected) shows a focused view with breadcrumb, post body, chronological
+   comments with date dividers, and an anchored composer. Flat rows only — NO
+   card-in-card. Consumes the v5 kit (k-frame/k-rail-nav/k-composer/k-card/k-pill)
+   + the #130 token layer; no raw hex/font lives here (anti-drift guard). */
 
 body {
   min-height: 100vh;
@@ -11,15 +15,21 @@ body {
     var(--bg-page);
 }
 
+/* shell is a column: fixed top bar, then the active state pane fills the rest.
+   The two states (feed/thread) are mutually exclusive full-pane views toggled by
+   data-view — the channel rail (left) carries post-to-post navigation. */
 .forum-shell {
-  grid-template-rows: 50px minmax(0, 1fr);
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 .topbar {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 0 0 50px;
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent);
@@ -30,6 +40,10 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
+}
+
+.brand-mark {
+  border-radius: var(--r-sm);
 }
 
 .eyebrow {
@@ -50,65 +64,88 @@ body {
   white-space: nowrap;
 }
 
-#forum-back {
+/* state switch: only the active view's pane is shown */
+.feed,
+.thread {
   display: none;
-  min-height: 26px;
-  align-items: center;
-  padding: 0 9px;
-  color: var(--muted-strong);
-}
-
-/* two-pane split */
-.forum {
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-}
-
-.flist {
+  flex: 1;
   min-width: 0;
+  min-height: 0;
+  flex-direction: column;
 }
 
-.fhead {
+.forum-shell[data-view="feed"] .feed {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 13px;
-  border-bottom: 1px solid var(--border-soft);
 }
 
-.ftitle {
-  color: var(--text-soft);
-  font-size: var(--fs-base);
-  font-weight: 600;
-}
-
-.ftitle .hsh {
-  color: var(--accent);
-}
-
-.fcount {
-  color: var(--muted);
-  font-size: var(--fs-sm);
+.forum-shell[data-view="thread"] .thread {
+  display: flex;
 }
 
 .fspacer {
   flex: 1;
 }
 
-.newbtn,
+/* ---- FEED (state A) ---- */
+.feedhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0 12px;
+}
+
+.search .ic {
+  color: var(--muted);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: var(--fs-base);
+}
+
+.search input::placeholder {
+  color: var(--faint);
+}
+
+.search input:focus {
+  outline: none;
+}
+
+.newpost,
 .sendbtn {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--accent-text);
   background: var(--accent);
   border: 0;
-  border-radius: 7px;
-  padding: 5px 11px;
+  border-radius: var(--r-md);
+  padding: 8px 14px;
   font: inherit;
   font-weight: 600;
+  font-size: var(--fs-md);
   cursor: pointer;
+  box-shadow: var(--glow-accent);
 }
 
 .ghostbtn {
@@ -116,41 +153,16 @@ body {
   background: var(--chip);
   border: 1px solid var(--border);
   border-radius: 7px;
-  padding: 5px 11px;
+  padding: 6px 12px;
   font: inherit;
   cursor: pointer;
-}
-
-.filters {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 9px 13px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.fchip {
-  color: var(--muted);
-  background: var(--chip);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  padding: 3px 10px;
-  font: inherit;
-  font-size: var(--fs-xs);
-  cursor: pointer;
-}
-
-.fchip.on {
-  color: var(--text);
-  border-color: var(--accent-line);
-  background: var(--accent-weak);
 }
 
 .new-post-form {
   display: grid;
   gap: 7px;
-  margin: 10px 13px;
-  padding: 11px;
+  margin: 12px 18px 0;
+  padding: 12px;
 }
 
 .new-post-form[hidden] {
@@ -184,81 +196,119 @@ body {
   display: none;
 }
 
+.feedbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sortbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-soft);
+  background: var(--chip);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fchip {
+  color: var(--muted);
+  background: var(--chip);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 3px 11px;
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.fchip.on {
+  color: var(--text);
+  border-color: var(--accent-line);
+  background: var(--accent-weak);
+}
+
 .posts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
-.post {
+/* one flat row per post — no nested card; rows separated by hairlines */
+.row {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 11px 13px;
+  gap: 13px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
 }
 
-.post:hover {
+.row:hover {
   background: var(--bg-band);
 }
 
-.post.sel {
-  background: var(--accent-weak);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.post .row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.post .ti {
+.row .col {
   flex: 1;
   min-width: 0;
-  color: var(--text);
-  font-size: var(--fs-base);
-  font-weight: 500;
-  line-height: 1.35;
+}
+
+.row .ti {
+  color: var(--text-strong);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 4px;
   overflow-wrap: anywhere;
 }
 
-.tags {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.tag {
+.row .pv {
   color: var(--muted);
-  background: var(--chip);
-  border-radius: 5px;
-  padding: 1px 7px;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.tag::before {
-  content: "#";
-  color: var(--faint);
+.row .pv .au {
+  color: var(--accent);
+  font-weight: 600;
 }
 
-.meta {
+.row .meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   flex-wrap: wrap;
+  margin-top: 8px;
   color: var(--faint);
   font-size: var(--fs-xs);
 }
 
-.meta .a {
-  color: var(--muted);
+.row .meta .m {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
-.meta .a.agent {
-  color: var(--accent);
+.row .meta .m.cm {
+  color: var(--text-soft);
 }
 
 /* status pill — frozen vocab → semantic v5 tokens, never a fill */
@@ -267,7 +317,7 @@ body {
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
-  padding: 2px 9px;
+  padding: 1px 8px;
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
   font-size: var(--fs-xs);
@@ -314,38 +364,95 @@ body {
   background: var(--off);
 }
 
-/* detail */
-.fdetail {
-  min-width: 0;
+.tags {
   display: flex;
-  flex-direction: column;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-#detail {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
+.tag {
+  color: var(--muted);
+  font-size: var(--fs-xs);
 }
 
-.dhead {
-  padding: 16px 20px 13px;
+.tag::before {
+  content: "#";
+  color: var(--faint);
+}
+
+/* ---- THREAD (state B) ---- */
+.thead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 0 0 auto;
+  padding: 11px 18px;
   border-bottom: 1px solid var(--border-soft);
 }
 
-.dhead .r1 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 9px;
+.back {
+  flex: 0 0 auto;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 9px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
 }
 
-.dhead h1 {
-  flex: 1;
+.back:hover {
+  color: var(--text-soft);
+  background: var(--chip);
+}
+
+.crumb {
   min-width: 0;
-  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-base);
+  color: var(--text-soft);
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.crumb .h {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.crumb .sep {
+  color: var(--faint);
+}
+
+.crumb .pt {
   color: var(--text-strong);
-  font-size: var(--fs-lg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+}
+
+/* original post — flat, top of thread (no card wrapper) */
+.op {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 6px;
+}
+
+.op h1 {
+  margin: 0 0 9px;
+  color: var(--text-strong);
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -356,7 +463,6 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 9px;
   color: var(--muted);
   font-size: var(--fs-sm);
 }
@@ -366,48 +472,48 @@ body {
 }
 
 .av {
-  width: 19px;
-  height: 19px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 6px;
-  color: var(--bg-page);
+  border-radius: 7px;
   font-size: 9px;
   font-weight: 700;
 }
 
 .av.hu {
-  background: var(--accent);
+  color: var(--badge-human-fg);
+  background: var(--chip);
+  border: 1px solid var(--border);
 }
 
 .av.ag {
-  background: var(--avatar-agent-bg);
+  color: var(--avatar-agent-fg);
+  background: var(--accent-weak);
+  border: 1px solid var(--accent-line);
 }
 
-.dbody {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 16px 20px;
+#detail-tags {
+  margin-top: 10px;
 }
 
-.cmts {
-  margin-top: 6px;
+#detail-body {
+  margin-top: 12px;
 }
 
-.cmts .lbl {
+/* date divider between comment day-groups */
+.datediv {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 4px 0 12px;
+  gap: 10px;
+  margin: 16px 0 8px;
   color: var(--faint);
   font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
 }
 
-.cmts .lbl::after {
+.datediv::before,
+.datediv::after {
   content: "";
   flex: 1;
   height: 1px;
@@ -416,9 +522,8 @@ body {
 
 .cmt {
   display: flex;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-soft);
+  gap: 11px;
+  padding: 11px 0;
 }
 
 .cmt .col {
@@ -428,7 +533,7 @@ body {
 
 .cmt .ch1 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 4px;
@@ -436,12 +541,12 @@ body {
 
 .cmt .nm {
   color: var(--text-soft);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 
 .cmt .nm.agent {
-  color: var(--accent);
+  color: var(--avatar-agent-fg);
 }
 
 .cmt .ci,
@@ -460,44 +565,74 @@ body {
 }
 
 .sys {
-  padding: 6px 20px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
   color: var(--faint);
   font-size: var(--fs-sm);
 }
 
-/* comment composer (consumes .k-composer skin) */
-.ccompose {
+/* anchored reply composer (consumes .k-composer skin) */
+.tcompose {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 0 14px 14px;
-  padding: 11px 13px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 11px 20px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--bg-band);
 }
 
-.cprompt {
+.tcompose .field {
   display: flex;
-  gap: 9px;
+  gap: 10px;
   align-items: flex-start;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 9px 13px;
 }
 
-.gt {
+.tcompose .chev {
   padding-top: 7px;
   color: var(--accent);
   font-weight: 800;
 }
 
-.ccompose textarea {
+.tcompose textarea {
   flex: 1;
-  min-height: 38px;
+  min-width: 0;
+  min-height: 24px;
   max-height: 160px;
   color: var(--text);
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 8px 11px;
+  background: transparent;
+  border: 0;
+  padding: 5px 0;
   font: inherit;
   font-size: var(--fs-md);
   resize: none;
+}
+
+.tcompose textarea:focus {
+  outline: none;
+}
+
+.tcompose .send {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .crow {
@@ -519,7 +654,7 @@ body {
 
 /* pane states (loading / empty / error) */
 .pane-state {
-  padding: 24px 16px;
+  padding: 24px 18px;
   color: var(--muted);
   font-size: var(--fs-base);
   text-align: center;
@@ -676,29 +811,18 @@ body {
   background: transparent;
 }
 
-/* mobile: collapse to list → detail */
+/* mobile: the channel rail collapses (handled in channel-rail.css); the active
+   feed/thread state already fills the shell at any width, so only spacing trims. */
 @media (max-width: 820px) {
-  .forum {
-    grid-template-columns: minmax(0, 1fr);
+  .op h1 {
+    font-size: 17px;
   }
 
-  .fdetail {
-    display: none;
+  .tbody {
+    padding: 14px 14px;
   }
 
-  .forum-shell[data-view="detail"] .flist {
-    display: none;
-  }
-
-  .forum-shell[data-view="detail"] .fdetail {
-    display: flex;
-  }
-
-  .forum-shell[data-view="detail"] #forum-back {
-    display: inline-flex;
-  }
-
-  .ccompose {
-    margin: 0 8px 8px;
+  .tcompose {
+    padding: 10px 14px;
   }
 }
