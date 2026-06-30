@@ -71,38 +71,66 @@ async function startFixture(): Promise<{ baseUrl: string; hostToken: string; clo
   return { baseUrl, hostToken, close: () => new Promise((r) => server.close(() => r())) };
 }
 
-test("forum UI: list → detail, markdown body, agent wake badge, comment compose, overflow-0 desktop+mobile", async () => {
+test("forum UI: feed → thread → back, rail nesting, markdown body, wake badge, date divider, comment compose, overflow-0 desktop+mobile", { timeout: 120_000 }, async () => {
   const fixture = await startFixture();
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
     await page.goto(`${fixture.baseUrl}/forum.html?channel=design-forum#token=${fixture.hostToken}`);
 
-    // post list renders the seeded post + status pill
-    await page.waitForSelector("text=Forum post layout — single column vs split");
-    assert.equal(await page.locator(".post .st.open").count() >= 1, true);
+    // STATE A (feed): flat post rows with a status pill (no card-in-card)
+    await page.waitForSelector(".forum-shell[data-view='feed']");
+    await page.waitForSelector(".row .ti:has-text('Forum post layout — single column vs split')");
+    assert.equal(await page.locator(".row .st.open").count() >= 1, true);
 
-    // open the post → detail renders with the safe Markdown body (code block)
-    await page.click(".post");
+    // the rail nests the forum's posts under the active forum channel, which
+    // stays highlighted while no post is selected (feed state)
+    await page.waitForSelector(".channel-link.on:has-text('design-forum')");
+    await page.waitForSelector("#rail-subgroup .rail-post");
+    assert.match(
+      await page.locator("#rail-subgroup").innerText(),
+      /Forum post layout — single column vs split/
+    );
+
+    // open the post → THREAD state (state B): breadcrumb + safe Markdown body
+    await page.click(".row");
+    await page.waitForSelector(".forum-shell[data-view='thread']");
     await page.waitForSelector("#detail-title");
+    assert.match(await page.locator(".crumb .pt").innerText(), /single column vs split/);
     await page.waitForSelector("#detail-body .code-block");
     assert.match(await page.locator("#detail-body").innerText(), /two-pane split/);
     assert.equal(await page.locator("#detail-body script").count(), 0); // no injection surface
 
+    // selecting a post moves the rail highlight down to the post; the parent
+    // forum channel is de-emphasized
+    await page.waitForSelector(".rail-post.on");
+    await page.waitForSelector(".channel-link.parent:has-text('design-forum')");
+
+    // comments are grouped under a date divider
+    await page.waitForSelector(".comments .datediv");
+    assert.match(await page.locator(".comments .datediv").first().innerText(), /\d{1,2} \w+ \d{4}/);
+
     // the agent comment shows the metadata-only wake-on-event badge
     await page.waitForSelector(".cmt .wakebadge");
 
-    // compose a comment → it appends
+    // compose a comment → it appends in the thread
     await page.fill("#comment-text", "Shipping the split.");
-    await page.click("#comment-form .sendbtn");
+    await page.click("#comment-form .send");
     await page.waitForSelector("text=Shipping the split.");
+
+    // back-to-list returns to the feed (state A)
+    await page.click("#forum-back");
+    await page.waitForSelector(".forum-shell[data-view='feed']");
+    await page.waitForSelector(".channel-link.on:has-text('design-forum')");
 
     // overflow-0 at desktop
     const deskOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     assert.equal(deskOverflow, true, "no horizontal overflow at 1280");
     await page.screenshot({ path: path.join(os.tmpdir(), "forum-desktop.png"), fullPage: true });
 
-    // overflow-0 at mobile (list → detail)
+    // overflow-0 at mobile (rail collapses to a strip; thread fills the pane)
+    await page.click(".row");
+    await page.waitForSelector(".forum-shell[data-view='thread']");
     await page.setViewportSize({ width: 390, height: 760 });
     await page.waitForTimeout(150);
     const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -114,7 +142,7 @@ test("forum UI: list → detail, markdown body, agent wake badge, comment compos
   }
 });
 
-test("forum UI shows an empty state for a forum with no posts", async () => {
+test("forum UI shows an empty state for a forum with no posts", { timeout: 120_000 }, async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "agentgather-forumempty-"));
   const hostToken = "tgl_host";
   await createRoom({ root, roomId: "demo", hostAlias: "host" });

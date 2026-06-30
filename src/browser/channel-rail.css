@@ -121,6 +121,94 @@
   color: var(--faint);
 }
 
+/* disclosure caret on the active forum channel (its posts nest below) */
+.channel-link .caret {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--accent);
+}
+
+/* when a post is selected the parent forum channel is de-emphasized — the
+   highlight moves down to the selected post (.rail-post.on). */
+.channel-link.parent {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-soft);
+}
+
+.channel-link.parent .caret {
+  color: var(--faint);
+}
+
+/* nested forum posts = children of the forum channel: indented, connector line */
+.rail-subgroup {
+  margin: 1px 0 4px 16px;
+  padding-left: 9px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rail-subgroup[hidden] {
+  display: none;
+}
+
+.rail-post {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rail-post::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  width: 7px;
+  height: 1px;
+  background: var(--border);
+}
+
+.rail-post:hover {
+  background: var(--chip);
+  color: var(--text-soft);
+}
+
+.rail-post.on {
+  background: var(--accent-weak);
+  color: var(--text-strong);
+  border-color: var(--accent-line);
+}
+
+.rail-post.on::before {
+  background: var(--accent);
+}
+
+.rail-post .pd {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--faint);
+}
+
+.rail-post.on .pd {
+  color: var(--accent);
+}
+
+.rail-post .nm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* mobile: collapse the vertical rail into a horizontal channel strip so the
    reused surface keeps the full pane width (rail → pane). */
 @media (max-width: 820px) {
@@ -153,7 +241,14 @@
     padding: 5px 10px;
   }
 
-  .channel-link .type {
+  .channel-link .type,
+  .channel-link .caret {
+    display: none;
+  }
+
+  /* the nested-post navigation is a desktop affordance; on the mobile strip the
+     feed (state A) rows + back-to-list carry post-to-post navigation. */
+  .rail-subgroup {
     display: none;
   }
 }

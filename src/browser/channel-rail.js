@@ -45,15 +45,43 @@ async function initRail(railEl) {
 
   const list = document.createElement("ul");
   list.className = "rail-channels";
+  // Empty container for the active forum channel's nested posts; the forum
+  // surface (forum.js) fills it once its post list loads. The rail itself
+  // stays metadata-only — it never fetches forum posts.
+  let forumSubgroup = null;
+  let activeForumLink = null;
   for (const channel of channels) {
     const active = onForum
       ? channel.type === "forum" && channel.id === activeForum
       : channel.type === "chat" && firstChat !== undefined && channel.id === firstChat.id;
-    list.append(channelLink(channel, active, token));
+    const isActiveForum = active && channel.type === "forum";
+    const link = channelLink(channel, active, token, isActiveForum);
+    list.append(link);
+    // Nest forum posts as children of the active forum channel (indent + caret).
+    if (isActiveForum) {
+      activeForumLink = link;
+      forumSubgroup = document.createElement("div");
+      forumSubgroup.className = "rail-subgroup";
+      forumSubgroup.id = "rail-subgroup";
+      forumSubgroup.hidden = true;
+      list.append(forumSubgroup);
+    }
   }
 
   railEl.replaceChildren(railHead(boardroom), railGroup("channels"), list);
   railEl.hidden = false;
+
+  // Hand the empty container + active link to the forum surface so it can
+  // render the nested posts and drive their active state. The forum module
+  // registers its listener synchronously at load, before this async fetch
+  // resolves, so the event is never missed.
+  if (forumSubgroup) {
+    document.dispatchEvent(
+      new CustomEvent("channel-rail:ready", {
+        detail: { subgroup: forumSubgroup, activeForumLink, activeForumId: activeForum }
+      })
+    );
+  }
 }
 
 function sessionToken() {
@@ -88,11 +116,12 @@ function railGroup(label) {
   return group;
 }
 
-function channelLink(channel, active, token) {
+function channelLink(channel, active, token, isActiveForum = false) {
   const link = document.createElement("a");
   link.className = active ? "channel-link on" : "channel-link";
   link.href = channelHref(channel, token);
   if (active) link.setAttribute("aria-current", "true");
+  if (isActiveForum) link.id = "rail-active-forum";
 
   const glyph = document.createElement("span");
   glyph.className = "glyph";
@@ -103,11 +132,21 @@ function channelLink(channel, active, token) {
   name.className = "name";
   name.textContent = channel.name || channel.id;
 
-  const type = document.createElement("span");
-  type.className = "type";
-  type.textContent = channel.type;
-
-  link.append(glyph, name, type);
+  link.append(glyph, name);
+  // The active forum channel carries a disclosure caret for its nested posts;
+  // every other channel shows its type label.
+  if (isActiveForum) {
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    caret.setAttribute("aria-hidden", "true");
+    caret.textContent = "▾";
+    link.append(caret);
+  } else {
+    const type = document.createElement("span");
+    type.className = "type";
+    type.textContent = channel.type;
+    link.append(type);
+  }
   return link;
 }
 
